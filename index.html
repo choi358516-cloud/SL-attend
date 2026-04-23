@@ -609,26 +609,66 @@ function closeDrawer(){
 // ══════════════════════════
 function initMsal(cid,tid){
   msalInstance=new msal.PublicClientApplication({
-    auth:{clientId:cid,authority:`https://login.microsoftonline.com/${tid}`,redirectUri:window.location.href},
-    cache:{cacheLocation:'sessionStorage'}
+    auth:{clientId:cid,authority:`https://login.microsoftonline.com/${tid}`,redirectUri:window.location.href.split('?')[0].split('#')[0]},
+    cache:{cacheLocation:'localStorage',storeAuthStateInCookie:true}
   });
 }
 async function loginWithMS(){
   const cid=document.getElementById('clientIdInput').value.trim();
   const tid=document.getElementById('tenantIdInput').value.trim();
   if(!cid||!tid){showToast('⚠️ ID를 입력해주세요');return;}
+  // Save IDs to localStorage so we can restore after redirect
+  localStorage.setItem('sl_attend_cid',cid);
+  localStorage.setItem('sl_attend_tid',tid);
   try{
     initMsal(cid,tid);
     await msalInstance.initialize();
-    const r=await msalInstance.loginPopup({scopes:SCOPES});
-    currentAccount=r.account;
-    initRecords(); enterApp(r.account.name||r.account.username); syncGraphData();
-  }catch(e){showToast('❌ 로그인 실패');}
+    // Handle redirect response first
+    const r=await msalInstance.handleRedirectPromise();
+    if(r&&r.account){
+      currentAccount=r.account;
+      initRecords(); enterApp(r.account.name||r.account.username); syncGraphData();
+      return;
+    }
+    // Redirect to Microsoft login (no popup)
+    await msalInstance.loginRedirect({scopes:SCOPES});
+  }catch(e){showToast('❌ 로그인 실패: '+e.message);}
 }
 async function getToken(){
   if(!msalInstance||!currentAccount)return null;
   try{const r=await msalInstance.acquireTokenSilent({scopes:SCOPES,account:currentAccount});return r.accessToken;}
-  catch{const r=await msalInstance.acquireTokenPopup({scopes:SCOPES});return r.accessToken;}
+  catch{
+    localStorage.setItem('sl_attend_cid',localStorage.getItem('sl_attend_cid'));
+    await msalInstance.acquireTokenRedirect({scopes:SCOPES,account:currentAccount});
+    return null;
+  }
+}
+// Auto-handle redirect on page load
+async function handleRedirectOnLoad(){
+  const cid=localStorage.getItem('sl_attend_cid');
+  const tid=localStorage.getItem('sl_attend_tid');
+  if(!cid||!tid)return;
+  try{
+    initMsal(cid,tid);
+    await msalInstance.initialize();
+    const r=await msalInstance.handleRedirectPromise();
+    if(r&&r.account){
+      // Restore IDs into input fields
+      document.getElementById('clientIdInput').value=cid;
+      document.getElementById('tenantIdInput').value=tid;
+      currentAccount=r.account;
+      initRecords(); enterApp(r.account.name||r.account.username); syncGraphData();
+      return;
+    }
+    // Check if already logged in
+    const accounts=msalInstance.getAllAccounts();
+    if(accounts.length>0){
+      document.getElementById('clientIdInput').value=cid;
+      document.getElementById('tenantIdInput').value=tid;
+      currentAccount=accounts[0];
+      initRecords(); enterApp(accounts[0].name||accounts[0].username); syncGraphData();
+    }
+  }catch(e){console.log('Redirect handle:',e);}
 }
 async function syncGraphData(){
   if(isDemo){showToast('✨ 데모 모드 실행 중');return;}
@@ -932,6 +972,11 @@ function closeModal(e){
   document.getElementById('editModal').classList.remove('open');
   editTarget=null;
 }
+
+// ══════════════════════════
+// AUTO REDIRECT HANDLER
+// ══════════════════════════
+window.addEventListener('load', handleRedirectOnLoad);
 
 // ══════════════════════════
 // TOAST
