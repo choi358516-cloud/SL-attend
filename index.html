@@ -768,8 +768,12 @@ function loadAdmins(){
   return [1]; // Firebase 로드 전 기본값
 }
 async function saveAdmins(list){
-  ADMINS.length=0; list.forEach(a=>ADMINS.push(a));
-  await fetch(`${FB_URL}/config/admins.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(list)}).catch(()=>{});
+  // Firebase에만 저장 — 로컬은 SSE가 자동 업데이트
+  await fetch(`${FB_URL}/config/admins.json`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(list)
+  }).catch(()=>{});
 }
 let ADMINS = loadAdmins();
 
@@ -1487,16 +1491,20 @@ function buildTeam(){
   return html;
 }
 async function toggleAdmin(id){
-  if(ADMINS.includes(id)){
-    if(ADMINS.length<=1){showToast('⚠️ 최소 1명의 관리자 필요');return;}
-    ADMINS.splice(ADMINS.indexOf(id),1);
+  const newAdmins = [...ADMINS];
+  if(newAdmins.includes(id)){
+    if(newAdmins.length<=1){showToast('⚠️ 최소 1명의 관리자 필요');return;}
+    newAdmins.splice(newAdmins.indexOf(id),1);
     showToast('관리자 해제됨');
   } else {
-    ADMINS.push(id);
+    newAdmins.push(id);
     showToast('👑 관리자 지정됨');
   }
-  await saveAdmins(ADMINS);
+  // 로컬 즉시 반영
+  ADMINS.length=0; newAdmins.forEach(a=>ADMINS.push(a));
   renderView('team');
+  // Firebase 저장 (SSE로 다른 기기에도 반영)
+  await saveAdmins(newAdmins);
 }
 function resetMemberPin(id, name){
   if(!confirm(`"${name}"의 PIN을 초기화할까요?\n다음 로그인 시 새로 설정하게 됩니다.`)) return;
