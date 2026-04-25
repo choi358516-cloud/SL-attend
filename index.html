@@ -1307,9 +1307,9 @@ function buildMonthly(){
         if(s==='absent')ab++;
       }
       const hasEv=(graphEvents[m.id]||[]).some(e=>e.date===date);
-      const editable=canEdit(m.id) && !isFutureDate;
-      const dotStyle=`background:${isFutureDate?'var(--border)':sc.dot};${editable?'cursor:pointer':''}`;
-      html+=`<td style="background:${date===todayStr?'rgba(255,201,71,0.06)':'transparent'};opacity:${isFutureDate?0.35:1}" ${editable?`onclick="openModal(${m.id},'${date}')" `:''}><div style="position:relative;display:inline-block"><span class="t-dot" style="${dotStyle}"></span>${hasEv?'<span style="position:absolute;top:-2px;right:-2px;width:4px;height:4px;background:#5c7cfa;border-radius:50%"></span>':''}</div></td>`;
+      const editable=canEdit(m.id); // 미래 날짜도 수정 가능
+      const dotStyle=`background:${isFutureDate?'var(--surface2)':sc.dot};${editable?'cursor:pointer':''}`;
+      html+=`<td style="background:${date===todayStr?'rgba(255,201,71,0.06)':'transparent'};opacity:${isFutureDate?0.5:1}" ${editable?`onclick="openModal(${m.id},'${date}')" `:''}><div style="position:relative;display:inline-block"><span class="t-dot" style="${dotStyle}"></span>${hasEv?'<span style="position:absolute;top:-2px;right:-2px;width:4px;height:4px;background:#5c7cfa;border-radius:50%"></span>':''}</div></td>`;
     });
     html+=`<td class="td-stat" style="color:#69db7c">${pr}</td><td class="td-stat" style="color:#74c0fc">${rm}</td><td class="td-stat" style="color:#ff6b6b">${ab}</td></tr>`;
   });
@@ -1353,7 +1353,7 @@ function showMemberDetail(id){
   for(let i=0;i<firstDay;i++) html+='<div></div>';
   allDays.forEach(({date,day,wd:w})=>{
     const s=records[id]?.[date], isFuture=date>todayStr, isWE=w===0||w===6, sc=s?STATUSES[s]:null, hasEv=evs.some(e=>e.date===date);
-    const editable=!isFuture&&!isWE&&canEdit(id);
+    const editable=!isWE&&canEdit(id); // 미래도 수정 가능, 주말만 제외
     html+=`<div class="cal-cell" ${editable?`onclick="openModal(${id},'${date}')"`:''}
       style="background:${sc?sc.bg:'var(--surface2)'};border:${date===todayStr?'1px solid #ffc947':'1px solid transparent'};opacity:${isFuture||isWE?0.3:1};cursor:${editable?'pointer':'default'};position:relative">
       <div style="font-size:9px;color:var(--text3)">${day}</div>
