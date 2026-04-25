@@ -813,7 +813,12 @@ const DEFAULT_MEMBERS = [
 ];
 function loadMembers(){ return [...DEFAULT_MEMBERS]; } // Firebase 로드 전 기본값
 async function saveMembers(){
-  await fetch(`${FB_URL}/config/members.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(MEMBERS)}).catch(()=>{});
+  const arr = MEMBERS.filter(m=>m&&m.id);
+  await fetch(`${FB_URL}/config/members.json`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(arr)
+  }).catch(()=>{});
 }
 function makeAvatar(name){ const p=name.trim(); return p.length>=2?(p[0]+p[1]).toUpperCase():p.toUpperCase(); }
 let MEMBERS = loadMembers();
@@ -981,19 +986,35 @@ async function loadConfig(){
 
 function applyConfig(cfg){
   if(!cfg) return;
-  if(cfg.members && Array.isArray(cfg.members)){
-    MEMBERS.length=0;
-    cfg.members.forEach(m=>MEMBERS.push(m));
-    buildMemberPicker();
+
+  // members: Firebase가 배열을 객체로 저장하므로 둘 다 처리
+  if(cfg.members){
+    const memberList = Array.isArray(cfg.members)
+      ? cfg.members
+      : Object.values(cfg.members);
+    if(memberList.length){
+      MEMBERS.length=0;
+      memberList.filter(m=>m&&m.id).forEach(m=>MEMBERS.push(m));
+      buildMemberPicker();
+    }
   }
-  if(cfg.statuses){
+
+  // statuses
+  if(cfg.statuses && typeof cfg.statuses==='object'){
     cfg.statuses.pending = DEFAULT_STATUSES.pending;
     Object.keys(STATUSES).forEach(k=>delete STATUSES[k]);
     Object.assign(STATUSES, cfg.statuses);
   }
-  if(cfg.admins && Array.isArray(cfg.admins)){
-    ADMINS.length=0;
-    cfg.admins.forEach(a=>ADMINS.push(a));
+
+  // admins: 배열 또는 객체 처리
+  if(cfg.admins){
+    const adminList = Array.isArray(cfg.admins)
+      ? cfg.admins
+      : Object.values(cfg.admins);
+    if(adminList.length){
+      ADMINS.length=0;
+      adminList.forEach(a=>ADMINS.push(a));
+    }
   }
 }
 
