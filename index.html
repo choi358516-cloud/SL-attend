@@ -608,6 +608,13 @@ tr:last-child td { border-bottom:none; }
 
 <script>
 // ══════════════════════════
+// FIREBASE 설정 (최상단 선언)
+// ══════════════════════════
+const FB_URL = 'https://sl-attend-default-rtdb.asia-southeast1.firebasedatabase.app';
+let isSavingConfig = false;
+let fbEventSource = null;
+
+// ══════════════════════════
 // PIN 인증 시스템
 // ══════════════════════════
 let pinBuffer = '';
@@ -979,11 +986,9 @@ const STATUS_SUBJECT={present:null,remote:'재택근무',late:'지각',absent:'�
 function getStatusSubject(key){ return STATUS_SUBJECT[key] || STATUSES[key]?.label || null; }
 
 // ══════════════════════════
-// GOOGLE SHEETS 연동
 // ══════════════════════════
-const FB_URL = 'https://sl-attend-default-rtdb.asia-southeast1.firebasedatabase.app';
-let fbEventSource = null;
-let isSavingConfig = false;
+// FIREBASE 연동
+// ══════════════════════════
 
 async function loadConfig(){
   try{
