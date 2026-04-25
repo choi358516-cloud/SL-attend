@@ -768,12 +768,34 @@ function loadAdmins(){
   return [1]; // Firebase 로드 전 기본값
 }
 async function saveAdmins(list){
-  // Firebase에만 저장 — 로컬은 SSE가 자동 업데이트
+  isSavingConfig = true;
   await fetch(`${FB_URL}/config/admins.json`,{
     method:'PUT',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(list)
   }).catch(()=>{});
+  setTimeout(()=>{ isSavingConfig = false; }, 3000); // 3초 후 해제
+}
+
+async function saveMembers(){
+  const arr = MEMBERS.filter(m=>m&&m.id);
+  isSavingConfig = true;
+  await fetch(`${FB_URL}/config/members.json`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(arr)
+  }).catch(()=>{});
+  setTimeout(()=>{ isSavingConfig = false; }, 3000);
+}
+
+async function saveStatuses(){
+  isSavingConfig = true;
+  await fetch(`${FB_URL}/config/statuses.json`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(STATUSES)
+  }).catch(()=>{});
+  setTimeout(()=>{ isSavingConfig = false; }, 3000);
 }
 let ADMINS = loadAdmins();
 
@@ -796,9 +818,6 @@ const DEFAULT_STATUSES = {
 function loadStatuses(){
   return {...DEFAULT_STATUSES}; // Firebase 로드 전 기본값
 }
-async function saveStatuses(){
-  await fetch(`${FB_URL}/config/statuses.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(STATUSES)}).catch(()=>{});
-}
 let STATUSES = loadStatuses();
 
 const DEFAULT_MEMBERS = [
@@ -809,15 +828,7 @@ const DEFAULT_MEMBERS = [
   {id:5,name:'정태윤',role:'사원/Finance',    av:'JT',email:'taeyun.jung@slworld.com'},
   {id:6,name:'한소희',role:'책임/Controlling',av:'HS',email:'sohee.han@slworld.com'},
 ];
-function loadMembers(){ return [...DEFAULT_MEMBERS]; } // Firebase 로드 전 기본값
-async function saveMembers(){
-  const arr = MEMBERS.filter(m=>m&&m.id);
-  await fetch(`${FB_URL}/config/members.json`,{
-    method:'PUT',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(arr)
-  }).catch(()=>{});
-}
+function loadMembers(){ return [...DEFAULT_MEMBERS]; }
 function makeAvatar(name){ const p=name.trim(); return p.length>=2?(p[0]+p[1]).toUpperCase():p.toUpperCase(); }
 let MEMBERS = loadMembers();
 
@@ -972,6 +983,7 @@ function getStatusSubject(key){ return STATUS_SUBJECT[key] || STATUSES[key]?.lab
 // ══════════════════════════
 const FB_URL = 'https://sl-attend-default-rtdb.asia-southeast1.firebasedatabase.app';
 let fbEventSource = null;
+let isSavingConfig = false;
 
 async function loadConfig(){
   try{
@@ -1043,13 +1055,12 @@ function startRealtimeSync(){
     fbEventSource.addEventListener('put', e=>{
       try{
         const payload=JSON.parse(e.data);
-        // 전체 데이터 변경 (최초 연결 시)
         if(payload.path==='/'){
           if(payload.data?.records) applyFirebaseData(payload.data.records);
-          if(payload.data?.config) applyConfig(payload.data.config);
+          if(payload.data?.config && !isSavingConfig) applyConfig(payload.data.config);
         } else if(payload.path==='/records'||payload.path.startsWith('/records/')){
           applyFirebaseData(payload.data);
-        } else if(payload.path==='/config'||payload.path.startsWith('/config/')){
+        } else if((payload.path==='/config'||payload.path.startsWith('/config/')) && !isSavingConfig){
           applyConfig(payload.data);
         }
         updateSyncStatus('● 실시간','#69db7c');
