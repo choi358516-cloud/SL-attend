@@ -1625,7 +1625,7 @@ function showCalendarPrompt(mid, date, status, note){
   prompt.innerHTML=`
     <div style="background:#222240;border:1px solid #363660;border-radius:20px 20px 0 0;padding:24px 20px calc(24px + env(safe-area-inset-bottom));width:100%;max-width:480px">
       <div style="width:36px;height:4px;background:#363660;border-radius:2px;margin:0 auto 18px"></div>
-      <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:800;margin-bottom:6px">✅ 저장 완료</div>
+      <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:800;margin-bottom:6px">✅ Firebase 저장 완료</div>
       <div style="font-size:13px;color:#9fa8c4;margin-bottom:20px">아웃룩 캘린더에도 <strong style="color:${sc.color}">"${subject}"</strong> 일정을 추가할까요?</div>
       <div style="display:flex;gap:8px">
         <button onclick="skipCalendar()" style="flex:1;padding:13px;background:transparent;border:1px solid #363660;border-radius:10px;color:#9fa8c4;font-size:14px;cursor:pointer;font-family:inherit">건너뛰기</button>
@@ -1633,19 +1633,21 @@ function showCalendarPrompt(mid, date, status, note){
       </div>
     </div>`;
   document.body.appendChild(prompt);
-  renderCurrentView();
+  // renderCurrentView 제거 — SSE가 저장 데이터를 덮어쓰는 원인
 }
 
 function confirmCalendar(mid, date, status, note){
   document.getElementById('calPrompt')?.remove();
   editTarget=null;
+  renderCurrentView();
   addToCalendar(mid, date, status, note);
 }
 
 function skipCalendar(){
   document.getElementById('calPrompt')?.remove();
   editTarget=null;
-  showToast('✅ 앱에만 저장됨');
+  showToast('✅ 저장됨');
+  renderCurrentView(); // 저장된 상태 화면에 반영
 }
 function closeModal(e){ if(e&&e.target!==document.getElementById('editModal'))return; document.getElementById('editModal').classList.remove('open'); editTarget=null; }
 
