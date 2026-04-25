@@ -462,7 +462,9 @@ tr:last-child td { border-bottom:none; }
     <!-- STEP 1: 팀원 선택 -->
     <div id="stepSelect">
       <p class="login-sub">팀원을 선택하세요</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px" id="memberPickGrid"></div>
+      <div id="memberPickGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text3);font-size:13px">⏳ 팀원 목록 불러오는 중...</div>
+      </div>
       <p style="font-size:11px;color:var(--text3);text-align:center">PIN 코드로 본인 인증 후 입장합니다</p>
     </div>
 
@@ -1630,17 +1632,29 @@ function showToast(msg){ const t=document.getElementById('toast'); t.textContent
 // ══════════════════════════
 // INIT
 // ══════════════════════════
-function initApp(){
-  // MEMBERS가 로드됐는지 확인 후 picker 렌더링
-  if(typeof MEMBERS === 'undefined' || !MEMBERS.length){
-    setTimeout(initApp, 100);
-    return;
-  }
+async function initApp(){
+  // 로딩 표시
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('appShell').style.display='none';
+
+  // Firebase에서 팀원 목록 먼저 로드
+  try{
+    const res = await fetch(`${FB_URL}/config.json`);
+    if(res.ok){
+      const cfg = await res.json();
+      if(cfg) applyConfig(cfg);
+    }
+  }catch(e){ console.log('초기 config 로드 실패, 기본값 사용'); }
+
+  // 팀원 목록 렌더링
   buildMemberPicker();
+
+  // 세션 복귀 (탭 새로고침 시)
   const name = sessionStorage.getItem('sl_user_name');
   const email = sessionStorage.getItem('sl_user_email')||'';
   const mid = parseInt(sessionStorage.getItem('sl_user_mid')||'0')||null;
   if(name){ currentAccount={name,email}; initRecords(); enterApp(name, email, mid); return; }
+
   setTimeout(checkPWAInstall, 2000);
 }
 
