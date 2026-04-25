@@ -850,10 +850,15 @@ function fmt(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,
 function getWorkdays(){
   const days=[], y=viewYear, m=viewMonth, tot=new Date(y,m+1,0).getDate();
   const isFutureMonth = (y > today.getFullYear())||(y===today.getFullYear()&&m>today.getMonth());
+  const isCurrentMonth = (y===today.getFullYear()&&m===today.getMonth());
   for(let d=1;d<=tot;d++){
     const dt=new Date(y,m,d), ds=fmt(dt);
-    // 미래 달이면 주말만 제외, 현재/과거 달이면 오늘까지만
-    if(dt.getDay()!==0&&dt.getDay()!==6&&(isFutureMonth||ds<=todayStr))
+    // 주말 제외
+    if(dt.getDay()===0||dt.getDay()===6) continue;
+    // 미래 달: 전체 표시
+    // 현재 달: 전체 표시 (미래 날짜 포함)
+    // 과거 달: 월말까지 표시
+    if(isFutureMonth||isCurrentMonth||ds<=todayStr)
       days.push({date:ds,day:d,wd:dt.getDay()});
   }
   return days;
@@ -1294,11 +1299,17 @@ function buildMonthly(){
     let pr=0,rm=0,ab=0;
     html+=`<tr><td class="td-name"><span class="t-avatar">${m.av}</span>${m.name}</td>`;
     wd.forEach(({date})=>{
+      const isFutureDate = date > todayStr;
       const s=records[m.id]?.[date]||'pending', sc=STATUSES[s];
-      if(s==='present'||s==='late')pr++; if(s==='remote')rm++; if(s==='absent')ab++;
+      if(!isFutureDate){
+        if(s==='present'||s==='late')pr++;
+        if(s==='remote')rm++;
+        if(s==='absent')ab++;
+      }
       const hasEv=(graphEvents[m.id]||[]).some(e=>e.date===date);
-      const editable=canEdit(m.id);
-      html+=`<td style="background:${date===todayStr?'rgba(255,201,71,0.06)':'transparent'}" ${editable?`onclick="openModal(${m.id},'${date}')" `:''}><div style="position:relative;display:inline-block"><span class="t-dot" style="background:${sc.dot};${editable?'cursor:pointer':''}"></span>${hasEv?'<span style="position:absolute;top:-2px;right:-2px;width:4px;height:4px;background:#5c7cfa;border-radius:50%"></span>':''}</div></td>`;
+      const editable=canEdit(m.id) && !isFutureDate;
+      const dotStyle=`background:${isFutureDate?'var(--border)':sc.dot};${editable?'cursor:pointer':''}`;
+      html+=`<td style="background:${date===todayStr?'rgba(255,201,71,0.06)':'transparent'};opacity:${isFutureDate?0.35:1}" ${editable?`onclick="openModal(${m.id},'${date}')" `:''}><div style="position:relative;display:inline-block"><span class="t-dot" style="${dotStyle}"></span>${hasEv?'<span style="position:absolute;top:-2px;right:-2px;width:4px;height:4px;background:#5c7cfa;border-radius:50%"></span>':''}</div></td>`;
     });
     html+=`<td class="td-stat" style="color:#69db7c">${pr}</td><td class="td-stat" style="color:#74c0fc">${rm}</td><td class="td-stat" style="color:#ff6b6b">${ab}</td></tr>`;
   });
