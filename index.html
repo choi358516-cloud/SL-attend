@@ -548,7 +548,7 @@ tr:last-child td { border-bottom:none; }
       </button>
     </div>
     <div class="drawer-footer">
-      <div class="sync-time" id="lastSync">오프라인 모드 · 로컬 저장</div>
+      <div class="sync-time" id="lastSyncDrawer">연결 중...</div>
       <button class="drawer-logout-btn" onclick="switchUser()" style="width:100%;margin-top:0">👤 사용자 변경</button>
     </div>
   </nav>
@@ -769,13 +769,13 @@ let currentView='today', filterStatus='all', editTarget=null;
 let isAdmin=false, myMemberId=null;
 
 function loadAdmins(){
-  try{
-    const s = localStorage.getItem('sl_admin_ids');
-    return s ? JSON.parse(s) : [1]; // 기본: id=1 (첫번째 팀원)이 관리자
-  }catch{ return [1]; }
+  try{ const s=localStorage.getItem('sl_admin_ids'); return s?JSON.parse(s):[1]; }catch{ return [1]; }
 }
-function saveAdmins(list){ localStorage.setItem('sl_admin_ids', JSON.stringify(list)); }
-let ADMINS = loadAdmins(); // 이제 ID 배열
+function saveAdmins(list){
+  localStorage.setItem('sl_admin_ids', JSON.stringify(list));
+  fetch(`${FB_URL}/config/admins.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(list)}).catch(()=>{});
+}
+let ADMINS = loadAdmins();
 
 function checkRole(email, memberId){
   isAdmin = ADMINS.includes(memberId) || memberId === 1;
@@ -801,7 +801,10 @@ function loadStatuses(){
   }catch{}
   return {...DEFAULT_STATUSES};
 }
-function saveStatuses(){ localStorage.setItem('sl_statuses', JSON.stringify(STATUSES)); }
+function saveStatuses(){
+  localStorage.setItem('sl_statuses', JSON.stringify(STATUSES));
+  fetch(`${FB_URL}/config/statuses.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(STATUSES)}).catch(()=>{});
+}
 let STATUSES = loadStatuses();
 
 const DEFAULT_MEMBERS = [
@@ -813,7 +816,10 @@ const DEFAULT_MEMBERS = [
   {id:6,name:'한소희',role:'책임/Controlling',av:'HS',email:'sohee.han@slworld.com'},
 ];
 function loadMembers(){ try{ const s=localStorage.getItem('sl_members'); return s?JSON.parse(s):[...DEFAULT_MEMBERS]; }catch{ return [...DEFAULT_MEMBERS]; } }
-function saveMembers(){ localStorage.setItem('sl_members', JSON.stringify(MEMBERS)); }
+function saveMembers(){
+  localStorage.setItem('sl_members', JSON.stringify(MEMBERS));
+  fetch(`${FB_URL}/config/members.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(MEMBERS)}).catch(()=>{});
+}
 function makeAvatar(name){ const p=name.trim(); return p.length>=2?(p[0]+p[1]).toUpperCase():p.toUpperCase(); }
 let MEMBERS = loadMembers();
 
@@ -912,8 +918,8 @@ function enterApp(name, email, memberId){
   if(roleEl) roleEl.textContent=isAdmin?'👑 관리자':'팀원';
   document.querySelectorAll('#dnav-team,#bnav-team,#dnav-status').forEach(b=>b.style.display=isAdmin?'':'none');
   renderView('today');
-  // 실시간 Firebase 연결 시작
-  setTimeout(startRealtimeSync, 300);
+  // Firebase config(팀원/근태항목) 먼저 로드 후 실시간 연결
+  loadConfig().then(()=>{ startRealtimeSync(); });
 }
 
 // ══════════════════════════
@@ -969,6 +975,58 @@ function getStatusSubject(key){ return STATUS_SUBJECT[key] || STATUSES[key]?.lab
 const FB_URL = 'https://sl-attend-default-rtdb.asia-southeast1.firebasedatabase.app';
 let fbEventSource = null;
 
+async function loadConfig(){
+  // Firebase에서 팀원/근태항목/관리자 로드
+  try{
+    const res = await fetch(`${FB_URL}/config.json`);
+    if(!res.ok) return;
+    const cfg = await res.json();
+    if(!cfg) return;
+
+    // 팀원 목록
+    if(cfg.members && Array.isArray(cfg.members)){
+      MEMBERS.length=0;
+      cfg.members.forEach(m=>MEMBERS.push(m));
+      localStorage.setItem('sl_members', JSON.stringify(MEMBERS));
+      buildMemberPicker();
+    }
+    // 근태 항목
+    if(cfg.statuses){
+      cfg.statuses.pending = DEFAULT_STATUSES.pending; // pending 고정
+      Object.keys(STATUSES).forEach(k=>delete STATUSES[k]);
+      Object.assign(STATUSES, cfg.statuses);
+      localStorage.setItem('sl_statuses', JSON.stringify(STATUSES));
+    }
+    // 관리자
+    if(cfg.admins && Array.isArray(cfg.admins)){
+      ADMINS.length=0;
+      cfg.admins.forEach(a=>ADMINS.push(a));
+      localStorage.setItem('sl_admin_ids', JSON.stringify(ADMINS));
+    }
+  }catch(e){ console.log('config 로드 실패(로컬 사용):', e); }
+}
+
+function applyConfig(cfg){
+  if(!cfg) return;
+  if(cfg.members && Array.isArray(cfg.members)){
+    MEMBERS.length=0;
+    cfg.members.forEach(m=>MEMBERS.push(m));
+    localStorage.setItem('sl_members', JSON.stringify(MEMBERS));
+    buildMemberPicker();
+  }
+  if(cfg.statuses){
+    cfg.statuses.pending = DEFAULT_STATUSES.pending;
+    Object.keys(STATUSES).forEach(k=>delete STATUSES[k]);
+    Object.assign(STATUSES, cfg.statuses);
+    localStorage.setItem('sl_statuses', JSON.stringify(STATUSES));
+  }
+  if(cfg.admins && Array.isArray(cfg.admins)){
+    ADMINS.length=0;
+    cfg.admins.forEach(a=>ADMINS.push(a));
+    localStorage.setItem('sl_admin_ids', JSON.stringify(ADMINS));
+  }
+}
+
 function applyFirebaseData(data){
   MEMBERS.forEach(m=>{ records[m.id]={}; });
   if(!data) return 0;
@@ -990,13 +1048,22 @@ function applyFirebaseData(data){
 
 function startRealtimeSync(){
   if(fbEventSource){ fbEventSource.close(); fbEventSource=null; }
+  updateSyncStatus('연결 중...','var(--text3)');
   try{
-    fbEventSource = new EventSource(`${FB_URL}/records.json`);
+    fbEventSource = new EventSource(`${FB_URL}/.json`);
     fbEventSource.addEventListener('put', e=>{
       try{
         const payload=JSON.parse(e.data);
-        const count=applyFirebaseData(payload.data);
-        document.getElementById('lastSync').textContent='● 실시간 연결됨';
+        // 전체 데이터 변경 (최초 연결 시)
+        if(payload.path==='/'){
+          if(payload.data?.records) applyFirebaseData(payload.data.records);
+          if(payload.data?.config) applyConfig(payload.data.config);
+        } else if(payload.path==='/records'||payload.path.startsWith('/records/')){
+          applyFirebaseData(payload.data);
+        } else if(payload.path==='/config'||payload.path.startsWith('/config/')){
+          applyConfig(payload.data);
+        }
+        updateSyncStatus('● 실시간','#69db7c');
         renderCurrentView();
       }catch(err){ console.error('SSE put 오류:', err); }
     });
@@ -1015,17 +1082,18 @@ function startRealtimeSync(){
           records[mid][date]=status;
           if(note) notes[`${mid}_${date}`]=note;
         });
+        updateSyncStatus('● 실시간','#69db7c');
         renderCurrentView();
       }catch(err){ console.error('SSE patch 오류:', err); }
     });
     fbEventSource.onerror=()=>{
-      const el=document.getElementById('lastSync');
-      if(el) el.textContent='⚠️ 재연결 중...';
+      updateSyncStatus('⚠️ 재연결 중','#ffc947');
       fbEventSource.close(); fbEventSource=null;
       setTimeout(startRealtimeSync, 5000);
     };
   }catch(e){
     console.error('SSE 시작 오류:', e);
+    updateSyncStatus('❌ 연결 실패','#ff6b6b');
     setTimeout(startRealtimeSync, 5000);
   }
 }
@@ -1037,7 +1105,7 @@ async function gsLoad(){
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data=await res.json();
     const count=applyFirebaseData(data);
-    document.getElementById('lastSync').textContent=`동기화: ${new Date().toLocaleTimeString('ko-KR')}`;
+    updateSyncStatus(`${count}건 로드됨`,'var(--text2)');
     showToast(`✅ ${count}건 로드됨`);
     renderCurrentView();
   }catch(e){
