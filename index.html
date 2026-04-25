@@ -612,6 +612,7 @@ tr:last-child td { border-bottom:none; }
 // ══════════════════════════
 const FB_URL = 'https://sl-attend-default-rtdb.asia-southeast1.firebasedatabase.app';
 let isSavingConfig = false;
+let isSavingRecords = false;
 let fbEventSource = null;
 
 // ══════════════════════════
@@ -1061,9 +1062,9 @@ function startRealtimeSync(){
       try{
         const payload=JSON.parse(e.data);
         if(payload.path==='/'){
-          if(payload.data?.records) applyFirebaseData(payload.data.records);
+          if(payload.data?.records && !isSavingRecords) applyFirebaseData(payload.data.records);
           if(payload.data?.config && !isSavingConfig) applyConfig(payload.data.config);
-        } else if(payload.path==='/records'||payload.path.startsWith('/records/')){
+        } else if((payload.path==='/records'||payload.path.startsWith('/records/')) && !isSavingRecords){
           applyFirebaseData(payload.data);
         } else if((payload.path==='/config'||payload.path.startsWith('/config/')) && !isSavingConfig){
           applyConfig(payload.data);
@@ -1123,6 +1124,7 @@ async function gsSave(memberId, date, status, note=''){
   const m=MEMBERS.find(x=>x.id===memberId);
   if(!m) return;
   const key=`${memberId}_${date}`;
+  isSavingRecords = true;
   try{
     await fetch(`${FB_URL}/records/${key}.json`,{
       method:'PUT',
@@ -1137,6 +1139,7 @@ async function gsSave(memberId, date, status, note=''){
     console.error('Firebase 저장 오류:', e);
     showToast('⚠️ 저장 실패');
   }
+  setTimeout(()=>{ isSavingRecords = false; }, 3000);
 }
 
 function generateICS(date, subject, note=''){
