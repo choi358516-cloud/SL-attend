@@ -1035,6 +1035,34 @@ function applyConfig(cfg){
 }
 
 function applyFirebaseData(data){
+  if(!data) return 0;
+  let count=0;
+  // 전체 초기화 대신 병합 방식으로 변경
+  // isSavingRecords 중이면 완전 무시
+  if(isSavingRecords) return 0;
+
+  // Firebase 데이터를 로컬에 병합 (로컬 우선)
+  Object.entries(data).forEach(([key, row])=>{
+    if(!row) return;
+    const mid=parseInt(row.memberId||key.split('_')[0]);
+    const date=String(row.date||key.split('_').slice(1).join('_')||'').trim();
+    const status=String(row.status||'').trim();
+    const note=String(row.note||'').trim();
+    if(!mid||!date||!status) return;
+    if(!records[mid]) records[mid]={};
+    // 로컬에 이미 값이 있으면 Firebase 값으로 덮어쓰지 않음
+    // (내가 방금 수정한 값 보호)
+    if(!records[mid][date] || records[mid][date] === 'pending'){
+      records[mid][date]=status;
+    }
+    if(note && !notes[`${mid}_${date}`]) notes[`${mid}_${date}`]=note;
+    count++;
+  });
+  return count;
+}
+
+function applyFirebaseDataFull(data){
+  // 전체 초기화 후 로드 (↻ 새로고침 시 사용)
   MEMBERS.forEach(m=>{ records[m.id]={}; });
   if(!data) return 0;
   let count=0;
@@ -1110,7 +1138,7 @@ async function gsLoad(){
     const res=await fetch(`${FB_URL}/records.json?t=${Date.now()}`);
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data=await res.json();
-    const count=applyFirebaseData(data);
+    const count=applyFirebaseDataFull(data);
     updateSyncStatus(`${count}건 로드됨`,'var(--text2)');
     showToast(`✅ ${count}건 로드됨`);
     renderCurrentView();
