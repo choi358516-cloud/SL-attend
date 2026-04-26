@@ -913,7 +913,7 @@ function enterDemo(){
   MEMBERS.forEach(m=>{
     records[m.id]={}; graphEvents[m.id]=[];
     getWorkdays().forEach(({date})=>{
-      if(date===todayStr){records[m.id][date]='pending';return;}
+      if(date===todayStr){records[m.id][date]='present';return;}
       const r=Math.random();
       records[m.id][date]=r<0.7?'present':r<0.82?'remote':r<0.88?'vacation':r<0.93?'late':r<0.97?'business':'absent';
     });
@@ -1057,7 +1057,7 @@ function applyFirebaseData(data){
     if(!records[mid]) records[mid]={};
     // 로컬에 이미 값이 있으면 Firebase 값으로 덮어쓰지 않음
     // (내가 방금 수정한 값 보호)
-    if(!records[mid][date] || records[mid][date] === 'pending'){
+    if(!records[mid][date] || records[mid][date] === 'present'){
       records[mid][date]=status;
     }
     if(note && !notes[`${mid}_${date}`]) notes[`${mid}_${date}`]=note;
@@ -1250,7 +1250,7 @@ function renderCurrentView(){ renderView(currentView); }
 // TODAY VIEW
 // ══════════════════════════
 function buildToday(){
-  const ts=MEMBERS.map(m=>({...m,status:records[m.id]?.[todayStr]||'pending'}));
+  const ts=MEMBERS.map(m=>({...m,status:records[m.id]?.[todayStr]||'present'}));
   const cnt={}; Object.keys(STATUSES).forEach(k=>cnt[k]=0); ts.forEach(m=>cnt[m.status]++);
   const WD=['일','월','화','수','목','금','토'];
   let html=`<div class="page-title">오늘 현황</div>
@@ -1300,7 +1300,7 @@ function buildMonthly(){
     html+=`<tr><td class="td-name"><span class="t-avatar">${m.av}</span>${m.name}</td>`;
     wd.forEach(({date})=>{
       const isFutureDate = date > todayStr;
-      const s=records[m.id]?.[date]||'pending', sc=STATUSES[s];
+      const s=records[m.id]?.[date]||'present', sc=STATUSES[s];
       if(!isFutureDate){
         if(s==='present'||s==='late')pr++;
         if(s==='remote')rm++;
@@ -1308,7 +1308,7 @@ function buildMonthly(){
       }
       const hasEv=(graphEvents[m.id]||[]).some(e=>e.date===date);
       const editable=canEdit(m.id);
-      const dotColor = isFutureDate && s==='pending' ? 'var(--surface2)' : sc.dot;
+      const dotColor = isFutureDate && s==='present' ? 'var(--surface2)' : sc.dot;
       const dotStyle=`background:${dotColor};${editable?'cursor:pointer':''}`;
       html+=`<td style="background:${date===todayStr?'rgba(255,201,71,0.06)':'transparent'};opacity:${isFutureDate?0.6:1}" ${editable?`onclick="openModal(${m.id},'${date}')" `:''}><div style="position:relative;display:inline-block"><span class="t-dot" style="${dotStyle}"></span>${hasEv?'<span style="position:absolute;top:-2px;right:-2px;width:4px;height:4px;background:#5c7cfa;border-radius:50%"></span>':''}</div></td>`;
     });
@@ -1327,7 +1327,7 @@ function buildMember(){
   let html=`<div class="page-title">개인 상세</div><div class="page-sub">팀원 탭 → 월간 달력</div><div class="member-select-grid">`;
   MEMBERS.forEach(m=>{
     const stats={}; Object.keys(STATUSES).forEach(k=>stats[k]=0);
-    wd.forEach(({date})=>{ const s=records[m.id]?.[date]||'pending'; stats[s]++; });
+    wd.forEach(({date})=>{ const s=records[m.id]?.[date]||'present'; stats[s]++; });
     const total=wd.length, rate=total>0?Math.round(((stats.present+stats.remote+stats.late)/total)*100):0;
     html+=`<div class="ms-card" id="msc-${m.id}" onclick="showMemberDetail(${m.id})">
       <div class="ms-big-av">${m.av}</div><div class="ms-name">${m.name}</div><div class="ms-role">${m.role}</div>
@@ -1341,7 +1341,7 @@ function showMemberDetail(id){
   document.getElementById(`msc-${id}`)?.classList.add('active');
   const m=MEMBERS.find(x=>x.id===id), allDays=getAllDays(), wd=getWorkdays(), evs=graphEvents[id]||[];
   const stats={}; Object.keys(STATUSES).forEach(k=>stats[k]=0);
-  wd.forEach(({date})=>{ const s=records[id]?.[date]||'pending'; stats[s]++; });
+  wd.forEach(({date})=>{ const s=records[id]?.[date]||'present'; stats[s]++; });
   const firstDay=new Date(viewYear,viewMonth,1).getDay();
   let html=`<div class="detail-box"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800">${m.name}</div>
@@ -1437,7 +1437,7 @@ function buildStatusMgr(){
 
   editableKeys.forEach((key, i)=>{
     const s = STATUSES[key];
-    const isFixed = ['present','pending'].includes(key);
+    const isFixed = key === 'present';
     html+=`<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:${i<editableKeys.length-1?'1px solid var(--border)':'none'}">
       <div style="width:36px;height:36px;border-radius:9px;background:${s.bg};display:flex;align-items:center;justify-content:center;flex-shrink:0">
         <div style="width:14px;height:14px;border-radius:50%;background:${s.dot}"></div>
@@ -1626,7 +1626,7 @@ function openModal(mid,date){
   document.getElementById('modalTitle').textContent=m.name;
   document.getElementById('modalDate').textContent=date;
   document.getElementById('noteInput').value=notes[`${mid}_${date}`]||'';
-  const cur=records[mid]?.[date]||'pending';
+  const cur=records[mid]?.[date]||'present';
   document.getElementById('statusGrid').innerHTML=Object.entries(STATUSES).filter(([k])=>k!=='pending').map(([k,v])=>
     `<button class="status-opt${cur===k?' selected':''}" id="opt_${k}" style="background:${cur===k?v.bg:'var(--surface2)'};border-color:${cur===k?v.color:'var(--border)'};color:${cur===k?v.color:'var(--text2)'}" onclick="selectStatus('${k}')">${v.label}</button>`
   ).join('');
