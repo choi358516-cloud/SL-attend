@@ -741,9 +741,9 @@ function checkPin(){
 
 function enterOffline(name, email, memberId){
   // 세션 정보만 기기에 저장 (PIN 보안상 필요)
-  sessionStorage.setItem('sl_user_name', name);
-  sessionStorage.setItem('sl_user_email', email||'');
-  sessionStorage.setItem('sl_user_mid', memberId||'');
+  localStorage.setItem('sl_user_name', name);
+  localStorage.setItem('sl_user_email', email||'');
+  localStorage.setItem('sl_user_mid', memberId||'');
   currentAccount = { name, email };
   initRecords();
   enterApp(name, email, memberId);
@@ -1011,7 +1011,10 @@ function processGraphEvents(mid, evs){
 // OUTLOOK 쓰기
 // ══════════════════════════
 const STATUS_SUBJECT={present:null,remote:'재택근무',late:'지각',absent:'결근',vacation:'휴가',business:'출장',pending:null};
-function getStatusSubject(key){ return STATUS_SUBJECT[key] || STATUSES[key]?.label || null; }
+function getStatusSubject(key){
+  if(key==='present'||key==='pending') return null;
+  return STATUS_SUBJECT[key] || STATUSES[key]?.label || DEFAULT_STATUSES[key]?.label || null;
+}
 
 // ══════════════════════════
 // ══════════════════════════
@@ -1943,25 +1946,26 @@ function openModal(mid,date){
 }
 function selectStatus(k){ const sc=STATUSES[k]||DEFAULT_STATUSES[k]||STATUSES.present; document.querySelectorAll('.status-opt').forEach(b=>{b.style.background='var(--surface2)';b.style.borderColor='var(--border)';b.style.color='var(--text2)';b.classList.remove('selected');}); const btn=document.getElementById(`opt_${k}`); btn.classList.add('selected');btn.style.background=sc.bg;btn.style.borderColor=sc.color;btn.style.color=sc.color; editTarget.status=k; }
 function saveModal(){
-  if(!editTarget)return;
-  const{memberId,date,status}=editTarget;
-  if(!status){showToast('⚠️ 상태 선택');return;}
-  if(!records[memberId])records[memberId]={};
-  records[memberId][date]=status;
-  const note=document.getElementById('noteInput').value.trim();
-  if(note)notes[`${memberId}_${date}`]=note;
+  if(!editTarget) return;
+  const{memberId, date, status} = editTarget;
+  if(!status){ showToast('⚠️ 상태 선택'); return; }
+  if(!records[memberId]) records[memberId]={};
+  records[memberId][date] = status;
+  const note = document.getElementById('noteInput').value.trim();
+  if(note) notes[`${memberId}_${date}`] = note;
 
-  // Google Sheets에 저장 (백그라운드)
+  // Firebase 저장 (백그라운드)
   gsSave(memberId, date, status, note);
 
-  const subject = getStatusSubject(status); // 커스텀 항목 포함
-  const isMe=isDemo||isAdmin||memberId===myMemberId;
+  // 출근/미확인 아니면 ICS 팝업 (권한 체크 없이 무조건)
+  const subject = getStatusSubject(status);
 
-  if(isMe && subject){
-    document.getElementById('editModal').classList.remove('open');
+  document.getElementById('editModal').classList.remove('open');
+  editTarget = null;
+
+  if(subject){
     showCalendarPrompt(memberId, date, status, note);
   } else {
-    closeModal();
     showToast('✅ 저장됨');
     renderCurrentView();
   }
@@ -2152,9 +2156,9 @@ async function initApp(){
   buildMemberPicker();
 
   // 세션 복귀 (탭 새로고침 시)
-  const name = sessionStorage.getItem('sl_user_name');
-  const email = sessionStorage.getItem('sl_user_email')||'';
-  const mid = parseInt(sessionStorage.getItem('sl_user_mid')||'0')||null;
+  const name = localStorage.getItem('sl_user_name');
+  const email = localStorage.getItem('sl_user_email')||'';
+  const mid = parseInt(localStorage.getItem('sl_user_mid')||'0')||null;
   if(name){ currentAccount={name,email}; initRecords(); enterApp(name, email, mid); return; }
 
   setTimeout(checkPWAInstall, 2000);
