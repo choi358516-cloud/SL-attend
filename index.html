@@ -1337,7 +1337,8 @@ function buildMonthly(){
     html+=`<tr><td class="td-name"><span class="t-avatar">${m.av}</span>${m.name}</td>`;
     wd.forEach(({date})=>{
       const isFutureDate = date > todayStr;
-      const s=records[m.id]?.[date]||'present', sc=STATUSES[s];
+      const s=records[m.id]?.[date]||'present';
+      const sc=STATUSES[s]||DEFAULT_STATUSES[s]||STATUSES.present||DEFAULT_STATUSES.present;
       if(!isFutureDate){
         if(s==='present'||s==='late')pr++;
         if(s==='remote')rm++;
@@ -1345,7 +1346,7 @@ function buildMonthly(){
       }
       const hasEv=(graphEvents[m.id]||[]).some(e=>e.date===date);
       const editable=canEdit(m.id);
-      const dotColor = isFutureDate && s==='present' ? 'var(--surface2)' : sc.dot;
+      const dotColor = isFutureDate && s==='present' ? 'var(--surface2)' : (sc?.dot||'#6b74a0');
       const dotStyle=`background:${dotColor};${editable?'cursor:pointer':''}`;
       html+=`<td style="background:${date===todayStr?'rgba(255,201,71,0.06)':'transparent'};opacity:${isFutureDate?0.6:1}" ${editable?`onclick="openModal(${m.id},'${date}')" `:''}><div style="position:relative;display:inline-block"><span class="t-dot" style="${dotStyle}"></span>${hasEv?'<span style="position:absolute;top:-2px;right:-2px;width:4px;height:4px;background:#5c7cfa;border-radius:50%"></span>':''}</div></td>`;
     });
@@ -1361,15 +1362,20 @@ function buildMonthly(){
 // ══════════════════════════
 function buildMember(){
   const wd=getWorkdays();
+  const pastWd=wd.filter(({date})=>date<=todayStr);
   let html=`<div class="page-title">개인 상세</div><div class="page-sub">팀원 탭 → 월간 달력</div><div class="member-select-grid">`;
   MEMBERS.forEach(m=>{
     const stats={}; Object.keys(STATUSES).forEach(k=>stats[k]=0);
-    wd.forEach(({date})=>{ const s=records[m.id]?.[date]||'present'; stats[s]++; });
-    const total=wd.length, rate=total>0?Math.round(((stats.present+stats.remote+stats.late)/total)*100):0;
+    pastWd.forEach(({date})=>{
+      const s=records[m.id]?.[date]||'present';
+      if(stats[s]!==undefined) stats[s]++; else stats[s]=1;
+    });
+    const total=pastWd.length;
+    const rate=total>0?Math.round(((stats.present||0)+(stats.remote||0)+(stats.late||0))/total*100):0;
     html+=`<div class="ms-card" id="msc-${m.id}" onclick="showMemberDetail(${m.id})">
       <div class="ms-big-av">${m.av}</div><div class="ms-name">${m.name}</div><div class="ms-role">${m.role}</div>
       <div class="ms-rate" style="color:${rate>=90?'#69db7c':rate>=70?'#ffc947':'#ff6b6b'}">${rate}%</div>
-      <div class="ms-mini"><span style="color:#69db7c">출 ${stats.present}</span><span style="color:#74c0fc">재 ${stats.remote}</span><span style="color:#ff6b6b">결 ${stats.absent}</span></div></div>`;
+      <div class="ms-mini"><span style="color:#69db7c">출 ${stats.present||0}</span><span style="color:#74c0fc">재 ${stats.remote||0}</span><span style="color:#ff6b6b">결 ${stats.absent||0}</span></div></div>`;
   });
   html+='</div><div id="memberDetailArea"></div>'; return html;
 }
@@ -1378,7 +1384,11 @@ function showMemberDetail(id){
   document.getElementById(`msc-${id}`)?.classList.add('active');
   const m=MEMBERS.find(x=>x.id===id), allDays=getAllDays(), wd=getWorkdays(), evs=graphEvents[id]||[];
   const stats={}; Object.keys(STATUSES).forEach(k=>stats[k]=0);
-  wd.forEach(({date})=>{ const s=records[id]?.[date]||'present'; stats[s]++; });
+  const pastWd=wd.filter(({date})=>date<=todayStr);
+  pastWd.forEach(({date})=>{
+    const s=records[id]?.[date]||'present';
+    if(stats[s]!==undefined) stats[s]++; else stats[s]=1;
+  });
   const firstDay=new Date(viewYear,viewMonth,1).getDay();
   let html=`<div class="detail-box"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800">${m.name}</div>
