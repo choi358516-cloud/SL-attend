@@ -532,7 +532,7 @@ tr:last-child td { border-bottom:none; }
       </button>
       <div class="nav-section-label">아웃룩</div>
       <button class="nav-btn" id="dnav-calendar" onclick="switchView('calendar')">
-        <span class="nav-icon">📅</span> 캘린더 연동
+        <span class="nav-icon">📤</span> ICS 내보내기
       </button>
       <div class="nav-section-label">설정</div>
       <button class="nav-btn" id="dnav-team" onclick="switchView('team')">
@@ -574,8 +574,8 @@ tr:last-child td { border-bottom:none; }
       <span class="bnav-label">개인</span>
     </button>
     <button class="bnav-btn" id="bnav-calendar" onclick="switchView('calendar')">
-      <span class="bnav-icon">📅</span>
-      <span class="bnav-label">캘린더</span>
+      <span class="bnav-icon">📤</span>
+      <span class="bnav-label">내보내기</span>
     </button>
     <button class="bnav-btn" id="bnav-team" onclick="switchView('team')">
       <span class="bnav-icon">⚙️</span>
@@ -1247,7 +1247,7 @@ async function deleteOutlookEvents(token, date){
 // ══════════════════════════
 // VIEW ROUTING
 // ══════════════════════════
-const VIEW_TITLES={today:'오늘 현황',monthly:'월간 현황',member:'개인 상세',calendar:'캘린더 연동',team:'팀원 관리',status:'근태 항목 관리'};
+const VIEW_TITLES={today:'오늘 현황',monthly:'월간 현황',member:'개인 상세',calendar:'ICS 내보내기',team:'팀원 관리',status:'근태 항목 관리'};
 function switchView(v){
   currentView=v; filterStatus='all'; closeDrawer();
   ['today','monthly','member','calendar','team','status'].forEach(k=>{
@@ -1388,24 +1388,133 @@ function showMemberDetail(id){
 // CALENDAR VIEW
 // ══════════════════════════
 function buildCalendar(){
-  const allEvs=[]; MEMBERS.forEach(m=>(graphEvents[m.id]||[]).forEach(e=>allEvs.push({...e,member:m.name,av:m.av}))); allEvs.sort((a,b)=>a.date>b.date?1:-1);
-  let html=`<div class="page-title">캘린더 연동</div><div class="page-sub">내 아웃룩 이벤트 · ↻ 버튼으로 동기화</div>`;
-  if(!allEvs.length){
-    html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:48px 20px;text-align:center">
-      <div style="font-size:40px;margin-bottom:14px">📅</div>
-      <div style="font-size:15px;font-weight:700;margin-bottom:8px">동기화된 이벤트 없음</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:20px">로그인 후 ↻ 버튼을 눌러 동기화하세요</div>
-      <button onclick="syncGraphData()" style="padding:12px 24px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">↻ 지금 동기화</button></div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-top:12px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:10px">📋 아웃룩 자동 반영 기준</div>
-      ${[['휴가/연차/반차','vacation'],['출장/Business Trip','business'],['재택/WFH/Remote','remote'],['병가/Sick','absent']].map(([k,v])=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)"><span style="width:8px;height:8px;border-radius:50%;background:${STATUSES[v].dot};flex-shrink:0"></span><span style="font-size:12px;color:var(--text2)">제목에 <strong style="color:var(--text)">"${k}"</strong> 포함 시 → ${STATUSES[v].label} 자동 반영</span></div>`).join('')}</div>`;
-  } else {
-    html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:var(--text2)">총 <strong style="color:var(--text)">${allEvs.length}건</strong></span><button onclick="syncGraphData()" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;font-weight:700">↻ 새로고침</button></div>`;
-    allEvs.forEach(e=>{ const ec=STATUSES[e.type]||STATUSES.pending; html+=`<div class="ev-item"><div style="width:8px;height:8px;border-radius:50%;background:${ec.dot};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}</div><div style="font-size:10px;color:var(--text2)">${e.date}</div></div><span style="background:${ec.bg};color:${ec.color};border-radius:5px;padding:2px 8px;font-size:10px;font-weight:700;flex-shrink:0">${ec.label}</span></div>`; });
-    html+='</div>';
-  }
+  const y = viewYear, m = viewMonth;
+  const monthName = `${y}년 ${m+1}월`;
+
+  let html=`<div class="page-title">ICS 내보내기</div>
+    <div class="page-sub">근태 기록을 아웃룩 캘린더로 내보내기</div>
+
+    <!-- 월 선택 -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700">📅 내보낼 기간</div>
+        ${monthNavHTML()}
+      </div>
+
+      <!-- 팀원 선택 -->
+      <div style="font-size:10px;color:var(--text3);margin-bottom:8px">팀원 선택</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px">
+        ${MEMBERS.map(m=>`
+          <button onclick="toggleIcsMember(${m.id})" id="ics_m_${m.id}"
+            style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:all 0.15s">
+            <span style="width:24px;height:24px;border-radius:6px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text2)">${m.av}</span>
+            ${m.name}
+          </button>`).join('')}
+      </div>
+
+      <!-- 내보내기 버튼 -->
+      <button onclick="exportICS()" style="width:100%;padding:13px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">
+        📤 ${monthName} ICS 내보내기
+      </button>
+    </div>
+
+    <!-- 사용 방법 -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px">📋 아웃룩 가져오기 방법</div>
+      ${[
+        ['1', '.ics 파일 다운로드 후'],
+        ['2', '아웃룩 → 파일 → 열기/내보내기'],
+        ['3', 'iCalendar 가져오기 → 파일 선택'],
+        ['4', '캘린더에 일정 자동 등록 ✅']
+      ].map(([n,t])=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${n}</div>
+          <span style="font-size:12px;color:var(--text2)">${t}</span>
+        </div>`).join('')}
+    </div>`;
+
   return html;
+}
+
+// 선택된 팀원 목록
+let selectedIcsMembers = new Set();
+
+function toggleIcsMember(id){
+  const btn = document.getElementById(`ics_m_${id}`);
+  if(selectedIcsMembers.has(id)){
+    selectedIcsMembers.delete(id);
+    btn.style.background = 'var(--surface2)';
+    btn.style.borderColor = 'var(--border)';
+    btn.style.color = 'var(--text)';
+  } else {
+    selectedIcsMembers.add(id);
+    btn.style.background = 'rgba(92,124,250,0.15)';
+    btn.style.borderColor = '#5c7cfa';
+    btn.style.color = '#5c7cfa';
+  }
+}
+
+function exportICS(){
+  const targets = selectedIcsMembers.size > 0
+    ? MEMBERS.filter(m=>selectedIcsMembers.has(m.id))
+    : MEMBERS; // 선택 없으면 전체
+
+  const y = viewYear, mo = viewMonth;
+  const tot = new Date(y, mo+1, 0).getDate();
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//SL Corporation//ATTEND App//KO',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:SL Finance 근태 ${y}년 ${mo+1}월`,
+  ];
+
+  let eventCount = 0;
+  targets.forEach(m=>{
+    for(let d=1;d<=tot;d++){
+      const dt = new Date(y,mo,d);
+      if(dt.getDay()===0||dt.getDay()===6) continue;
+      const date = `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const status = records[m.id]?.[date]||'present';
+      const sc = STATUSES[status]||STATUSES.present;
+      if(status==='present') continue; // 출근은 제외 (기본값이라 불필요)
+
+      const uid = `sl-attend-${m.id}-${date}@slworld.com`;
+      const stamp = new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+      const start = date.replace(/-/g,'');
+      lines.push(
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART;TZID=Asia/Seoul:${start}T090000`,
+        `DTEND;TZID=Asia/Seoul:${start}T180000`,
+        `SUMMARY:[${m.name}] ${sc.label}`,
+        `DESCRIPTION:SL Finance 근태관리 앱 자동 생성`,
+        'STATUS:CONFIRMED',
+        'CATEGORIES:SL-ATTEND',
+        'END:VEVENT'
+      );
+      eventCount++;
+    }
+  });
+
+  lines.push('END:VCALENDAR');
+
+  if(eventCount===0){
+    showToast('ℹ️ 내보낼 일정 없음 (출근 외 항목만 내보내기)');
+    return;
+  }
+
+  const ics = lines.join('\r\n');
+  const blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `SL_Finance_근태_${y}년${mo+1}월.ics`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  showToast(`✅ ${eventCount}건 내보내기 완료`);
 }
 
 // ══════════════════════════
