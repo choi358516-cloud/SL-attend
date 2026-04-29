@@ -1235,8 +1235,8 @@ function generateICS(date, subject, note=''){
 }
 
 function addToCalendar(mid, date, status, note=''){
-  const subject = STATUS_SUBJECT[status];
-  if(!subject){ showToast('ℹ️ 출근/미확인은 캘린더 등록 불필요'); return; }
+  const subject = getStatusSubject(status);
+  if(!subject){ showToast('ℹ️ 출근은 캘린더 등록 불필요'); return; }
 
   const ics = generateICS(date, subject, note);
   const blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
@@ -1954,7 +1954,7 @@ function saveModal(){
   // Google Sheets에 저장 (백그라운드)
   gsSave(memberId, date, status, note);
 
-  const subject=STATUS_SUBJECT[status];
+  const subject = getStatusSubject(status); // 커스텀 항목 포함
   const isMe=isDemo||isAdmin||memberId===myMemberId;
 
   if(isMe && subject){
@@ -1968,8 +1968,8 @@ function saveModal(){
 }
 
 function showCalendarPrompt(mid, date, status, note){
-  const subject=STATUS_SUBJECT[status];
-  const sc=STATUSES[status]||DEFAULT_STATUSES[status]||STATUSES.present;
+  const subject = getStatusSubject(status);
+  const sc = STATUSES[status]||DEFAULT_STATUSES[status]||STATUSES.present;
   const prompt=document.createElement('div');
   prompt.id='calPrompt';
   prompt.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:800;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px)';
