@@ -1495,9 +1495,17 @@ function toggleIcsMember(id){
 }
 
 function exportICS(){
+  // Firebase 데이터 로드 여부 확인
+  const hasData = MEMBERS.some(m=>Object.keys(records[m.id]||{}).length > 0);
+  if(!hasData){
+    showToast('⚠️ 데이터 로드 중입니다. 잠시 후 다시 시도해주세요.');
+    gsLoad(); // 강제 로드
+    return;
+  }
+
   const targets = selectedIcsMembers.size > 0
     ? MEMBERS.filter(m=>selectedIcsMembers.has(m.id))
-    : MEMBERS; // 선택 없으면 전체
+    : MEMBERS;
 
   const y = viewYear, mo = viewMonth;
   const tot = new Date(y, mo+1, 0).getDate();
@@ -1516,9 +1524,11 @@ function exportICS(){
       const dt = new Date(y,mo,d);
       if(dt.getDay()===0||dt.getDay()===6) continue;
       const date = `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const status = records[m.id]?.[date]||'present';
-      const sc = STATUSES[status]||STATUSES.present;
-      if(status==='present') continue; // 출근은 제외 (기본값이라 불필요)
+      // Firebase에 실제 저장된 값만 사용 (기본값 폴백 없음)
+      const status = records[m.id]?.[date];
+      if(!status || status==='present') continue; // 없거나 출근이면 제외
+      const sc = STATUSES[status]||DEFAULT_STATUSES[status];
+      if(!sc) continue;
 
       const uid = `sl-attend-${m.id}-${date}@slworld.com`;
       const stamp = new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
@@ -1627,20 +1637,29 @@ function buildStatusMgr(){
   return html;
 }
 
-async function moveStatus(key, dir){
+function moveStatus(key, dir){
   const keys = getOrderedStatusKeys();
   const idx = keys.indexOf(key);
   const swapIdx = idx + dir;
   if(swapIdx < 0 || swapIdx >= keys.length) return;
   const swapKey = keys[swapIdx];
-  const el = document.getElementById('mainContent');
-  const savedScroll = el.scrollTop;
+
+  // 순서 즉시 교환
   keys.forEach((k, i) => { STATUSES[k].order = i; });
   STATUSES[key].order = swapIdx;
   STATUSES[swapKey].order = idx;
-  await saveStatuses();
+
+  // UI 즉시 업데이트 (스크롤 유지)
+  const el = document.getElementById('mainContent');
+  const savedScroll = el.scrollTop;
   el.innerHTML = buildStatusMgr();
   el.scrollTop = savedScroll;
+
+  // Firebase 저장은 백그라운드
+  isSavingConfig = true;
+  saveStatuses().then(()=>{
+    setTimeout(()=>{ isSavingConfig=false; }, 3000);
+  });
 }
 
 function openColorPicker(key){
@@ -1797,24 +1816,27 @@ function buildTeam(){
   html+=`</div><div style="font-size:11px;color:var(--text3);margin-top:12px;text-align:center">팀원 정보는 Firebase에 저장됩니다</div>`;
   return html;
 }
-async function moveMember(idx, dir){
+function moveMember(idx, dir){
   const swapIdx = idx + dir;
   if(swapIdx < 0 || swapIdx >= MEMBERS.length) return;
-  const el = document.getElementById('mainContent');
-  const savedScroll = el.scrollTop;
 
+  // 배열 즉시 교환
   const tmp = MEMBERS[idx];
   MEMBERS[idx] = MEMBERS[swapIdx];
   MEMBERS[swapIdx] = tmp;
-  isSavingConfig = true;
-  await saveMembers();
-  setTimeout(()=>{ isSavingConfig=false; }, 3000);
-  buildMemberPicker();
 
-  // innerHTML 변경 전 스크롤 저장, 변경 후 즉시 복원
-  const mainEl = document.getElementById('mainContent');
-  mainEl.innerHTML = buildTeam();
-  mainEl.scrollTop = savedScroll;
+  // UI 즉시 업데이트 (스크롤 유지)
+  const el = document.getElementById('mainContent');
+  const savedScroll = el.scrollTop;
+  el.innerHTML = buildTeam();
+  el.scrollTop = savedScroll;
+
+  // Firebase 저장은 백그라운드
+  isSavingConfig = true;
+  saveMembers().then(()=>{
+    setTimeout(()=>{ isSavingConfig=false; }, 3000);
+  });
+  buildMemberPicker();
 }
 
 async function toggleAdmin(id){
