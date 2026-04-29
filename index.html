@@ -1094,8 +1094,6 @@ function applyFirebaseDataFull(data){
   return count;
 }
 
-let pollTimer = null;
-let lastPollData = null;
 
 function startRealtimeSync(){
   if(fbEventSource){ fbEventSource.close(); fbEventSource=null; }
