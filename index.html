@@ -303,7 +303,7 @@ body {
 }
 .s-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
 .s-card.active { border-color: currentColor; }
-.s-count { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; }
+.s-count { font-family:'Syne',sans-serif; font-size:28px; font-weight:700; letter-spacing:-0.5px; line-height:1; }
 .s-label { font-size:11px; color:var(--text2); margin-top:3px; font-weight:600; }
 
 /* Member cards — 1 col on mobile */
@@ -372,7 +372,7 @@ tr:last-child td { border-bottom:none; }
 .ms-card.active .ms-big-av { background:var(--accent); color:#fff; }
 .ms-name { font-size:14px; font-weight:700; }
 .ms-role { font-size:11px; color:var(--text2); margin:3px 0 8px; }
-.ms-rate { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; }
+.ms-rate { font-family:'Syne',sans-serif; font-size:22px; font-weight:700; letter-spacing:-0.5px; line-height:1.2; }
 .ms-mini { display:flex; gap:7px; justify-content:center; font-size:11px; font-weight:700; flex-wrap:wrap; margin-top:5px; }
 
 /* Detail box */
@@ -1139,7 +1139,8 @@ async function pollFirebase(){
     } else { await recRes.text(); }
 
     updateSyncStatus('● 실시간','#69db7c');
-    renderCurrentView();
+    // 캘린더(ICS) 탭에서는 선택 초기화 방지를 위해 재렌더링 스킵
+    if(currentView !== 'calendar') renderCurrentView();
   }catch(e){
     console.error('폴링 오류:', e);
     updateSyncStatus('⚠️ 연결 오류','#ffc947');
@@ -1257,21 +1258,39 @@ function switchView(v){
   document.getElementById('topbarTitle').textContent=VIEW_TITLES[v]||v;
   renderView(v);
 }
-function renderView(v){ currentView=v; const el=document.getElementById('mainContent'); el.innerHTML=v==='today'?buildToday():v==='monthly'?buildMonthly():v==='member'?buildMember():v==='calendar'?buildCalendar():v==='team'?buildTeam():v==='status'?buildStatusMgr():''; el.scrollTop=0; }
+function renderView(v){
+  currentView=v;
+  const el=document.getElementById('mainContent');
+  el.innerHTML=v==='today'?buildToday():v==='monthly'?buildMonthly():v==='member'?buildMember():v==='calendar'?buildCalendar():v==='team'?buildTeam():v==='status'?buildStatusMgr():'';
+  el.scrollTop=0;
+  // 캘린더 탭 선택 상태 복원
+  if(v==='calendar'){
+    selectedIcsMembers.forEach(id=>{
+      const btn=document.getElementById(`ics_m_${id}`);
+      if(btn){ btn.style.background='rgba(92,124,250,0.15)'; btn.style.borderColor='#5c7cfa'; btn.style.color='#5c7cfa'; }
+    });
+  }
+}
 function renderCurrentView(){ renderView(currentView); }
 
 // ══════════════════════════
 // TODAY VIEW
 // ══════════════════════════
 function buildToday(){
-  const ts=MEMBERS.map(m=>({...m,status:records[m.id]?.[todayStr]||'present'}));
-  const cnt={}; Object.keys(STATUSES).forEach(k=>cnt[k]=0); ts.forEach(m=>cnt[m.status]++);
   const WD=['일','월','화','수','목','금','토'];
+  const ts=MEMBERS.map(m=>({...m,status:records[m.id]?.[todayStr]||'present'}));
+  const statusKeys = Object.keys(STATUSES).filter(k=>k!=='pending');
+  const cnt={};
+  statusKeys.forEach(k=>cnt[k]=0);
+  ts.forEach(m=>{ if(cnt[m.status]!==undefined) cnt[m.status]++; });
+
   let html=`<div class="page-title">오늘 현황</div>
     <div class="page-sub">${today.getMonth()+1}월 ${today.getDate()}일 (${WD[today.getDay()]}) · Finance Team</div>
     <div class="summary-strip">`;
-  ['present','remote','late','absent','vacation','business'].forEach(s=>{
-    const sc=STATUSES[s]||DEFAULT_STATUSES[s]||{color:'#6b74a0',label:s,bg:'rgba(107,116,160,0.18)',dot:'#6b74a0'};
+
+  statusKeys.forEach(s=>{
+    const sc=STATUSES[s]||DEFAULT_STATUSES[s];
+    if(!sc) return;
     html+=`<div class="s-card ${filterStatus===s?'active':''}" style="color:${sc.color}" onclick="toggleFilter('${s}')">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${sc.color}"></div>
       <div class="s-count">${cnt[s]||0}</div><div class="s-label">${sc.label}</div></div>`;
@@ -1362,7 +1381,7 @@ function showMemberDetail(id){
     ${monthNavHTML()}
   </div>
     <div class="detail-stat-row">`;
-  Object.entries(STATUSES).filter(([k])=>k!=='pending').forEach(([k,v])=>{ html+=`<div class="detail-stat-card" style="border-left:3px solid ${v.color}"><div style="color:${v.color};font-family:'Syne',sans-serif;font-size:18px;font-weight:800">${stats[k]}</div><div style="font-size:10px;color:var(--text2)">${v.label}</div></div>`; });
+  Object.entries(STATUSES).filter(([k])=>k!=='pending').forEach(([k,v])=>{ html+=`<div class="detail-stat-card" style="border-left:3px solid ${v.color}"><div style="color:${v.color};font-family:'Syne',sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.5px;line-height:1">${stats[k]}</div><div style="font-size:10px;color:var(--text2)">${v.label}</div></div>`; });
   html+='</div><div class="cal-grid">';
   ['일','월','화','수','목','금','토'].forEach(d=>{ html+=`<div style="text-align:center;font-size:9px;color:var(--text3);padding:3px">${d}</div>`; });
   for(let i=0;i<firstDay;i++) html+='<div></div>';
