@@ -1269,12 +1269,12 @@ function switchView(v){
   document.getElementById('topbarTitle').textContent=VIEW_TITLES[v]||v;
   renderView(v);
 }
-function renderView(v){
+function renderView(v, keepScroll=false){
   currentView=v;
   const el=document.getElementById('mainContent');
+  const prevScroll = el.scrollTop;
   el.innerHTML=v==='today'?buildToday():v==='monthly'?buildMonthly():v==='member'?buildMember():v==='calendar'?buildCalendar():v==='team'?buildTeam():v==='status'?buildStatusMgr():'';
-  el.scrollTop=0;
-  // 캘린더 탭 선택 상태 복원
+  el.scrollTop = keepScroll ? prevScroll : 0;
   if(v==='calendar'){
     selectedIcsMembers.forEach(id=>{
       const btn=document.getElementById(`ics_m_${id}`);
@@ -1633,17 +1633,16 @@ async function moveStatus(key, dir){
   const swapIdx = idx + dir;
   if(swapIdx < 0 || swapIdx >= keys.length) return;
   const swapKey = keys[swapIdx];
-
-  // order 값을 인덱스 기반으로 완전히 재할당
-  // 먼저 모든 항목에 현재 순서 기준 order 정규화
+  const scrollTop = document.getElementById('mainContent').scrollTop;
+  // order 정규화 후 교환
   keys.forEach((k, i) => { STATUSES[k].order = i; });
-
-  // 두 항목 order 교환
   STATUSES[key].order = swapIdx;
   STATUSES[swapKey].order = idx;
-
   await saveStatuses();
-  renderView('status');
+  renderView('status', true);
+  requestAnimationFrame(()=>{
+    document.getElementById('mainContent').scrollTop = scrollTop;
+  });
 }
 
 function openColorPicker(key){
@@ -1803,7 +1802,8 @@ function buildTeam(){
 async function moveMember(idx, dir){
   const swapIdx = idx + dir;
   if(swapIdx < 0 || swapIdx >= MEMBERS.length) return;
-  // 배열에서 두 항목 위치 교환
+  // 현재 스크롤 위치 저장
+  const scrollTop = document.getElementById('mainContent').scrollTop;
   const tmp = MEMBERS[idx];
   MEMBERS[idx] = MEMBERS[swapIdx];
   MEMBERS[swapIdx] = tmp;
@@ -1811,7 +1811,10 @@ async function moveMember(idx, dir){
   await saveMembers();
   setTimeout(()=>{ isSavingConfig=false; }, 3000);
   buildMemberPicker();
-  renderView('team');
+  renderView('team', true);
+  requestAnimationFrame(()=>{
+    document.getElementById('mainContent').scrollTop = scrollTop;
+  });
 }
 
 async function toggleAdmin(id){
