@@ -1028,15 +1028,19 @@ function applyConfig(cfg){
     }
   }
 
-  // statuses — DEFAULT와 병합 (기본값 보호)
-  if(cfg.statuses && typeof cfg.statuses==='object'){
+  // statuses — Firebase 데이터 우선, pending만 항상 고정
+  if(cfg.statuses && typeof cfg.statuses==='object' && !isSavingConfig){
     Object.keys(STATUSES).forEach(k=>delete STATUSES[k]);
-    // 기본값 먼저 복사
-    Object.assign(STATUSES, {...DEFAULT_STATUSES});
-    // Firebase 값으로 덮어쓰기 (pending 제외)
+    // Firebase statuses 적용
     Object.entries(cfg.statuses).forEach(([k,v])=>{
       if(k !== 'pending' && v) STATUSES[k] = v;
     });
+    // 기본 항목이 하나도 없으면 DEFAULT 복원 (안전장치)
+    if(Object.keys(STATUSES).filter(k=>k!=='pending').length === 0){
+      Object.assign(STATUSES, {...DEFAULT_STATUSES});
+    }
+    // pending 항상 고정
+    STATUSES.pending = DEFAULT_STATUSES.pending;
   }
 
   // admins: 배열 또는 객체 처리
@@ -1634,7 +1638,15 @@ async function deleteStatus(key){
   if(!confirm(`"${STATUSES[key]?.label}" 항목을 삭제할까요?`)) return;
   delete STATUSES[key];
   delete STATUS_SUBJECT[key];
+  // Firebase에서 해당 키 명시적 삭제 (null로 설정)
+  isSavingConfig = true;
+  await fetch(`${FB_URL}/config/statuses/${key}.json`, {
+    method: 'DELETE',
+    headers: {'Content-Type':'application/json'}
+  }).catch(()=>{});
+  // 전체 statuses도 업데이트
   await saveStatuses();
+  setTimeout(()=>{ isSavingConfig = false; }, 3000);
   showToast('🗑️ 항목 삭제 완료');
   renderView('status');
 }
