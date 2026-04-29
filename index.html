@@ -1633,16 +1633,14 @@ async function moveStatus(key, dir){
   const swapIdx = idx + dir;
   if(swapIdx < 0 || swapIdx >= keys.length) return;
   const swapKey = keys[swapIdx];
-  const scrollTop = document.getElementById('mainContent').scrollTop;
-  // order 정규화 후 교환
+  const el = document.getElementById('mainContent');
+  const savedScroll = el.scrollTop;
   keys.forEach((k, i) => { STATUSES[k].order = i; });
   STATUSES[key].order = swapIdx;
   STATUSES[swapKey].order = idx;
   await saveStatuses();
-  renderView('status', true);
-  requestAnimationFrame(()=>{
-    document.getElementById('mainContent').scrollTop = scrollTop;
-  });
+  el.innerHTML = buildStatusMgr();
+  el.scrollTop = savedScroll;
 }
 
 function openColorPicker(key){
@@ -1802,8 +1800,9 @@ function buildTeam(){
 async function moveMember(idx, dir){
   const swapIdx = idx + dir;
   if(swapIdx < 0 || swapIdx >= MEMBERS.length) return;
-  // 현재 스크롤 위치 저장
-  const scrollTop = document.getElementById('mainContent').scrollTop;
+  const el = document.getElementById('mainContent');
+  const savedScroll = el.scrollTop;
+
   const tmp = MEMBERS[idx];
   MEMBERS[idx] = MEMBERS[swapIdx];
   MEMBERS[swapIdx] = tmp;
@@ -1811,10 +1810,11 @@ async function moveMember(idx, dir){
   await saveMembers();
   setTimeout(()=>{ isSavingConfig=false; }, 3000);
   buildMemberPicker();
-  renderView('team', true);
-  requestAnimationFrame(()=>{
-    document.getElementById('mainContent').scrollTop = scrollTop;
-  });
+
+  // innerHTML 변경 전 스크롤 저장, 변경 후 즉시 복원
+  const mainEl = document.getElementById('mainContent');
+  mainEl.innerHTML = buildTeam();
+  mainEl.scrollTop = savedScroll;
 }
 
 async function toggleAdmin(id){
