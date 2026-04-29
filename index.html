@@ -1028,11 +1028,15 @@ function applyConfig(cfg){
     }
   }
 
-  // statuses
+  // statuses — DEFAULT와 병합 (기본값 보호)
   if(cfg.statuses && typeof cfg.statuses==='object'){
-    cfg.statuses.pending = DEFAULT_STATUSES.pending;
     Object.keys(STATUSES).forEach(k=>delete STATUSES[k]);
-    Object.assign(STATUSES, cfg.statuses);
+    // 기본값 먼저 복사
+    Object.assign(STATUSES, {...DEFAULT_STATUSES});
+    // Firebase 값으로 덮어쓰기 (pending 제외)
+    Object.entries(cfg.statuses).forEach(([k,v])=>{
+      if(k !== 'pending' && v) STATUSES[k] = v;
+    });
   }
 
   // admins: 배열 또는 객체 처리
@@ -1267,17 +1271,17 @@ function buildToday(){
     <div class="page-sub">${today.getMonth()+1}월 ${today.getDate()}일 (${WD[today.getDay()]}) · Finance Team</div>
     <div class="summary-strip">`;
   ['present','remote','late','absent','vacation','business'].forEach(s=>{
-    const sc=STATUSES[s];
+    const sc=STATUSES[s]||DEFAULT_STATUSES[s]||{color:'#6b74a0',label:s,bg:'rgba(107,116,160,0.18)',dot:'#6b74a0'};
     html+=`<div class="s-card ${filterStatus===s?'active':''}" style="color:${sc.color}" onclick="toggleFilter('${s}')">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${sc.color}"></div>
-      <div class="s-count">${cnt[s]}</div><div class="s-label">${sc.label}</div></div>`;
+      <div class="s-count">${cnt[s]||0}</div><div class="s-label">${sc.label}</div></div>`;
   });
   html+='</div>';
   if(filterStatus!=='all') html+=`<div class="filter-bar"><span style="color:${STATUSES[filterStatus].color};font-weight:700">${STATUSES[filterStatus].label} 필터</span><button class="filter-clear" onclick="toggleFilter('${filterStatus}')">✕ 전체</button></div>`;
   const fl=filterStatus==='all'?ts:ts.filter(m=>m.status===filterStatus);
   html+='<div class="member-grid">';
   fl.forEach(m=>{
-    const sc=STATUSES[m.status], evs=(graphEvents[m.id]||[]).filter(e=>e.date===todayStr);
+    const sc=STATUSES[m.status]||DEFAULT_STATUSES[m.status]||STATUSES.present, evs=(graphEvents[m.id]||[]).filter(e=>e.date===todayStr);
     html+=`<div class="m-card"><div class="m-card-top">
       <div class="m-avatar" style="background:${sc.bg};color:${sc.color}">${m.av}</div>
       <div style="flex:1;min-width:0"><div class="m-name">${m.name}</div><div class="m-role">${m.role}</div></div>
@@ -1642,7 +1646,7 @@ function openModal(mid,date){
   ).join('');
   document.getElementById('editModal').classList.add('open');
 }
-function selectStatus(k){ const sc=STATUSES[k]; document.querySelectorAll('.status-opt').forEach(b=>{b.style.background='var(--surface2)';b.style.borderColor='var(--border)';b.style.color='var(--text2)';b.classList.remove('selected');}); const btn=document.getElementById(`opt_${k}`); btn.classList.add('selected');btn.style.background=sc.bg;btn.style.borderColor=sc.color;btn.style.color=sc.color; editTarget.status=k; }
+function selectStatus(k){ const sc=STATUSES[k]||DEFAULT_STATUSES[k]||STATUSES.present; document.querySelectorAll('.status-opt').forEach(b=>{b.style.background='var(--surface2)';b.style.borderColor='var(--border)';b.style.color='var(--text2)';b.classList.remove('selected');}); const btn=document.getElementById(`opt_${k}`); btn.classList.add('selected');btn.style.background=sc.bg;btn.style.borderColor=sc.color;btn.style.color=sc.color; editTarget.status=k; }
 function saveModal(){
   if(!editTarget)return;
   const{memberId,date,status}=editTarget;
@@ -1670,7 +1674,7 @@ function saveModal(){
 
 function showCalendarPrompt(mid, date, status, note){
   const subject=STATUS_SUBJECT[status];
-  const sc=STATUSES[status];
+  const sc=STATUSES[status]||DEFAULT_STATUSES[status]||STATUSES.present;
   const prompt=document.createElement('div');
   prompt.id='calPrompt';
   prompt.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:800;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px)';
