@@ -823,18 +823,25 @@ function checkRole(email, memberId){
 function canEdit(mid){ return isDemo||isAdmin||mid===myMemberId; }
 
 const DEFAULT_STATUSES = {
-  present:  {label:'출근',  color:'#69db7c', bg:'rgba(105,219,124,0.18)', dot:'#69db7c'},
-  remote:   {label:'재택',  color:'#74c0fc', bg:'rgba(116,192,252,0.18)', dot:'#74c0fc'},
-  late:     {label:'지각',  color:'#ffc947', bg:'rgba(255,201,71,0.18)',  dot:'#ffc947'},
-  absent:   {label:'결근',  color:'#ff6b6b', bg:'rgba(255,107,107,0.18)', dot:'#ff6b6b'},
-  vacation: {label:'휴가',  color:'#cc5de8', bg:'rgba(204,93,232,0.18)', dot:'#cc5de8'},
-  business: {label:'출장',  color:'#38d9a9', bg:'rgba(56,217,169,0.18)', dot:'#38d9a9'},
-  pending:  {label:'미확인',color:'#6b74a0', bg:'rgba(107,116,160,0.18)',dot:'#6b74a0'},
+  present:  {label:'출근',  color:'#69db7c', bg:'rgba(105,219,124,0.18)', dot:'#69db7c', order:0},
+  remote:   {label:'재택',  color:'#74c0fc', bg:'rgba(116,192,252,0.18)', dot:'#74c0fc', order:1},
+  late:     {label:'지각',  color:'#ffc947', bg:'rgba(255,201,71,0.18)',  dot:'#ffc947', order:2},
+  absent:   {label:'결근',  color:'#ff6b6b', bg:'rgba(255,107,107,0.18)', dot:'#ff6b6b', order:3},
+  vacation: {label:'휴가',  color:'#cc5de8', bg:'rgba(204,93,232,0.18)', dot:'#cc5de8', order:4},
+  business: {label:'출장',  color:'#38d9a9', bg:'rgba(56,217,169,0.18)', dot:'#38d9a9', order:5},
+  pending:  {label:'미확인',color:'#6b74a0', bg:'rgba(107,116,160,0.18)',dot:'#6b74a0', order:99},
 };
 function loadStatuses(){
-  return {...DEFAULT_STATUSES}; // Firebase 로드 전 기본값
+  return {...DEFAULT_STATUSES};
 }
 let STATUSES = loadStatuses();
+
+// order 기준 정렬된 키 목록 (pending 제외)
+function getOrderedStatusKeys(){
+  return Object.keys(STATUSES)
+    .filter(k=>k!=='pending')
+    .sort((a,b)=>(STATUSES[a]?.order??99)-(STATUSES[b]?.order??99));
+}
 
 const DEFAULT_MEMBERS = [
   {id:1,name:'김준호',role:'책임/Finance',    av:'KJ',email:'junho.choi@slworld.com'},
@@ -1283,7 +1290,7 @@ function renderCurrentView(){ renderView(currentView); }
 function buildToday(){
   const WD=['일','월','화','수','목','금','토'];
   const ts=MEMBERS.map(m=>({...m,status:records[m.id]?.[todayStr]||'present'}));
-  const statusKeys = Object.keys(STATUSES).filter(k=>k!=='pending');
+  const statusKeys = getOrderedStatusKeys();
   const cnt={};
   statusKeys.forEach(k=>cnt[k]=0);
   ts.forEach(m=>{ if(cnt[m.status]!==undefined) cnt[m.status]++; });
@@ -1561,7 +1568,7 @@ const COLOR_OPTIONS = [
 function buildStatusMgr(){
   if(!isAdmin&&!isDemo) return `<div class="page-title">근태 항목 관리</div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:48px 20px;text-align:center;margin-top:8px"><div style="font-size:36px;margin-bottom:12px">🔒</div><div style="font-size:15px;font-weight:700">관리자 전용</div></div>`;
 
-  const editableKeys = Object.keys(STATUSES).filter(k=>k!=='pending');
+  const editableKeys = getOrderedStatusKeys();
   let html = `<div class="page-title">근태 항목 관리</div>
     <div class="page-sub">항목 추가·삭제·이름 변경 · 관리자 전용</div>
 
@@ -1594,23 +1601,44 @@ function buildStatusMgr(){
   editableKeys.forEach((key, i)=>{
     const s = STATUSES[key];
     const isFixed = key === 'present';
-    html+=`<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:${i<editableKeys.length-1?'1px solid var(--border)':'none'}">
-      <!-- 색상 클릭 → 색상 선택 팝업 -->
-      <div onclick="openColorPicker('${key}')" style="width:36px;height:36px;border-radius:9px;background:${s.bg};display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;border:2px solid transparent;transition:all 0.15s" title="색상 변경">
-        <div style="width:14px;height:14px;border-radius:50%;background:${s.dot}"></div>
+    const isFirst = i === 0;
+    const isLast = i === editableKeys.length - 1;
+    html+=`<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:${i<editableKeys.length-1?'1px solid var(--border)':'none'}">
+      <!-- 순서 변경 버튼 -->
+      <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+        <button onclick="moveStatus('${key}',-1)" ${isFirst?'disabled':''} style="width:22px;height:22px;border-radius:5px;background:${isFirst?'transparent':'var(--surface2)'};border:1px solid ${isFirst?'transparent':'var(--border)'};color:${isFirst?'var(--text3)':'var(--text2)'};font-size:11px;cursor:${isFirst?'default':'pointer'};display:flex;align-items:center;justify-content:center">▲</button>
+        <button onclick="moveStatus('${key}',1)" ${isLast?'disabled':''} style="width:22px;height:22px;border-radius:5px;background:${isLast?'transparent':'var(--surface2)'};border:1px solid ${isLast?'transparent':'var(--border)'};color:${isLast?'var(--text3)':'var(--text2)'};font-size:11px;cursor:${isLast?'default':'pointer'};display:flex;align-items:center;justify-content:center">▼</button>
+      </div>
+      <!-- 색상 -->
+      <div onclick="openColorPicker('${key}')" style="width:32px;height:32px;border-radius:8px;background:${s.bg};display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer">
+        <div style="width:12px;height:12px;border-radius:50%;background:${s.dot}"></div>
       </div>
       <div style="flex:1;min-width:0">
         <input value="${s.label}" onchange="renameStatus('${key}',this.value)"
           style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;width:100%;outline:none;font-family:inherit;padding:2px 0">
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">🎨 색상 탭해서 변경</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">🎨 색상 탭 · ▲▼ 순서 변경</div>
       </div>
-      ${!isFixed ? `<button onclick="deleteStatus('${key}')" style="width:32px;height:32px;border-radius:8px;background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.2);color:var(--red);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>` : `<div style="font-size:10px;color:var(--text3);flex-shrink:0">고정</div>`}
+      ${!isFixed ? `<button onclick="deleteStatus('${key}')" style="width:28px;height:28px;border-radius:8px;background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.2);color:var(--red);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>` : `<div style="font-size:10px;color:var(--text3);flex-shrink:0">고정</div>`}
     </div>`;
   });
 
   html+=`</div>
     <div style="font-size:11px;color:var(--text3);margin-top:12px;text-align:center">항목 이름은 입력란 클릭 후 바로 수정 가능합니다</div>`;
   return html;
+}
+
+async function moveStatus(key, dir){
+  const keys = getOrderedStatusKeys();
+  const idx = keys.indexOf(key);
+  const swapIdx = idx + dir;
+  if(swapIdx < 0 || swapIdx >= keys.length) return;
+  const swapKey = keys[swapIdx];
+  // order 값 교환
+  const tmpOrder = STATUSES[key].order ?? idx;
+  STATUSES[key].order = STATUSES[swapKey].order ?? swapIdx;
+  STATUSES[swapKey].order = tmpOrder;
+  await saveStatuses();
+  renderView('status');
 }
 
 function openColorPicker(key){
@@ -1663,10 +1691,12 @@ async function addStatus(){
   const color = document.getElementById('newStatusColor')?.value || COLOR_OPTIONS[0];
   if(!label){ showToast('⚠️ 항목 이름을 입력해주세요'); return; }
   const key = 'custom_' + Date.now();
+  const maxOrder = Math.max(...Object.values(STATUSES).map(s=>s.order??0), 0);
   STATUSES[key] = {
     label, color,
     bg: `rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},0.18)`,
-    dot: color
+    dot: color,
+    order: maxOrder + 1
   };
   STATUS_SUBJECT[key] = label;
   await saveStatuses();
