@@ -544,6 +544,7 @@ tr:last-child td { border-bottom:none; }
     </div>
     <div class="drawer-footer">
       <div class="sync-time" id="lastSyncDrawer">연결 중...</div>
+      <button id="drawerInstallBtn" onclick="installFromDrawer()" style="display:none;width:100%;padding:11px;background:rgba(92,124,250,0.15);border:1px solid #5c7cfa;border-radius:10px;color:#5c7cfa;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">📲 앱으로 설치하기</button>
       <button class="drawer-logout-btn" onclick="switchUser()" style="width:100%;margin-top:0">👤 사용자 변경</button>
     </div>
   </nav>
@@ -955,8 +956,14 @@ function enterApp(name, email, memberId){
   if(roleEl) roleEl.textContent=isAdmin?'👑 관리자':'팀원';
   document.querySelectorAll('#dnav-team,#bnav-team,#dnav-status').forEach(b=>b.style.display=isAdmin?'':'none');
   renderView('today');
-  // Firebase config(팀원/근태항목) 먼저 로드 후 실시간 연결
+  // Firebase config 로드 후 실시간 연결
   loadConfig().then(()=>{ startRealtimeSync(); });
+  // 설치 버튼 상태 업데이트
+  const installBtn = document.getElementById('drawerInstallBtn');
+  if(installBtn){
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    installBtn.style.display = (!isStandalone && deferredInstallPrompt) ? 'block' : 'none';
+  }
 }
 
 // ══════════════════════════
@@ -2003,12 +2010,63 @@ let deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', (e)=>{
   e.preventDefault();
   deferredInstallPrompt = e;
-  // 아직 설치 안 됐고 dismissed 아니면 배너 표시
+  // 드로어 설치 버튼 표시
+  const btn = document.getElementById('drawerInstallBtn');
+  if(btn) btn.style.display = 'block';
+  // 배너도 표시
   if(!localStorage.getItem('sl_pwa_dismissed') &&
      !window.matchMedia('(display-mode: standalone)').matches){
     checkPWAInstall();
   }
 });
+
+// 설치 완료 시 버튼 숨김
+window.addEventListener('appinstalled', ()=>{
+  const btn = document.getElementById('drawerInstallBtn');
+  if(btn) btn.style.display = 'none';
+  deferredInstallPrompt = null;
+  showToast('✅ 앱 설치 완료!');
+});
+
+async function installFromDrawer(){
+  if(deferredInstallPrompt){
+    // Android Chrome — 바로 설치
+    deferredInstallPrompt.prompt();
+    const result = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    if(result.outcome==='accepted'){
+      showToast('✅ 앱 설치 완료!');
+      document.getElementById('drawerInstallBtn').style.display='none';
+    }
+    closeDrawer();
+  } else {
+    // iOS 또는 기타 브라우저 — 안내 팝업
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    closeDrawer();
+    const prompt = document.createElement('div');
+    prompt.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:800;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px)';
+    prompt.innerHTML=`
+      <div style="background:#222240;border:1px solid #363660;border-radius:20px 20px 0 0;padding:28px 20px calc(28px + env(safe-area-inset-bottom));width:100%;max-width:480px">
+        <div style="width:36px;height:4px;background:#363660;border-radius:2px;margin:0 auto 20px"></div>
+        <div style="font-size:32px;text-align:center;margin-bottom:12px">📲</div>
+        <div style="font-size:17px;font-weight:800;text-align:center;margin-bottom:8px">앱으로 설치하기</div>
+        ${isIOS ? `
+          <div style="font-size:13px;color:#9fa8c4;text-align:center;line-height:1.8;margin-bottom:20px">
+            하단 <b style="color:#e8eaf6">공유 버튼 (↑)</b> 탭<br>
+            → <b style="color:#e8eaf6">홈 화면에 추가</b> 탭
+          </div>
+          <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40'><text y='30' font-size='28' text-anchor='middle' x='50'>↑ 공유</text></svg>" style="width:100%;margin-bottom:16px">
+        ` : `
+          <div style="font-size:13px;color:#9fa8c4;text-align:center;line-height:1.8;margin-bottom:20px">
+            브라우저 메뉴 <b style="color:#e8eaf6">(⋮)</b> 탭<br>
+            → <b style="color:#e8eaf6">앱 설치</b> 또는 <b style="color:#e8eaf6">홈 화면에 추가</b>
+          </div>
+        `}
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;padding:13px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:14px;cursor:pointer;font-family:inherit">닫기</button>
+      </div>`;
+    document.body.appendChild(prompt);
+  }
+}
 
 function checkPWAInstall(){
   if(window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone) return;
