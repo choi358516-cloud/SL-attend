@@ -836,11 +836,11 @@ function loadStatuses(){
 }
 let STATUSES = loadStatuses();
 
-// order 기준 정렬된 키 목록 (pending 제외)
 function getOrderedStatusKeys(){
-  return Object.keys(STATUSES)
-    .filter(k=>k!=='pending')
-    .sort((a,b)=>(STATUSES[a]?.order??99)-(STATUSES[b]?.order??99));
+  const keys = Object.keys(STATUSES).filter(k=>k!=='pending');
+  // order 없는 항목에 기본값 부여
+  keys.forEach((k,i)=>{ if(STATUSES[k].order===undefined) STATUSES[k].order=i*10; });
+  return keys.sort((a,b)=>(STATUSES[a].order??99)-(STATUSES[b].order??99));
 }
 
 const DEFAULT_MEMBERS = [
@@ -1633,10 +1633,15 @@ async function moveStatus(key, dir){
   const swapIdx = idx + dir;
   if(swapIdx < 0 || swapIdx >= keys.length) return;
   const swapKey = keys[swapIdx];
-  // order 값 교환
-  const tmpOrder = STATUSES[key].order ?? idx;
-  STATUSES[key].order = STATUSES[swapKey].order ?? swapIdx;
-  STATUSES[swapKey].order = tmpOrder;
+
+  // order 값을 인덱스 기반으로 완전히 재할당
+  // 먼저 모든 항목에 현재 순서 기준 order 정규화
+  keys.forEach((k, i) => { STATUSES[k].order = i; });
+
+  // 두 항목 order 교환
+  STATUSES[key].order = swapIdx;
+  STATUSES[swapKey].order = idx;
+
   await saveStatuses();
   renderView('status');
 }
