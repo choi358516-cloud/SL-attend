@@ -1162,8 +1162,21 @@ async function pollFirebase(){
     } else { await recRes.text(); }
 
     updateSyncStatus('● 실시간','#69db7c');
-    // 캘린더(ICS) 탭에서는 선택 초기화 방지를 위해 재렌더링 스킵
-    if(currentView !== 'calendar') renderCurrentView();
+    if(currentView === 'calendar'){
+      // 캘린더 탭 — 재렌더링 스킵
+    } else if(currentView === 'member' && selectedMemberId){
+      // 개인 탭 — 상세 영역만 업데이트 (카드 선택 유지)
+      const detailArea = document.getElementById('memberDetailArea');
+      if(detailArea){
+        const m = MEMBERS.find(x=>x.id===selectedMemberId);
+        if(m){
+          // 상세 내용만 다시 그리기
+          showMemberDetail(selectedMemberId);
+        }
+      }
+    } else {
+      renderCurrentView();
+    }
   }catch(e){
     console.error('폴링 오류:', e);
     updateSyncStatus('⚠️ 연결 오류','#ffc947');
@@ -1274,6 +1287,7 @@ async function deleteOutlookEvents(token, date){
 const VIEW_TITLES={today:'오늘 현황',monthly:'월간 현황',member:'개인 상세',calendar:'ICS 내보내기',team:'팀원 관리',status:'근태 항목 관리'};
 function switchView(v){
   currentView=v; filterStatus='all'; closeDrawer();
+  selectedMemberId = null; // 탭 전환 시 초기화
   ['today','monthly','member','calendar','team','status'].forEach(k=>{
     document.getElementById(`bnav-${k}`)?.classList.toggle('active',k===v);
     document.getElementById(`dnav-${k}`)?.classList.toggle('active',k===v);
@@ -1392,7 +1406,10 @@ function buildMember(){
   });
   html+='</div><div id="memberDetailArea"></div>'; return html;
 }
+let selectedMemberId = null;
+
 function showMemberDetail(id){
+  selectedMemberId = id;
   document.querySelectorAll('.ms-card').forEach(c=>c.classList.remove('active'));
   document.getElementById(`msc-${id}`)?.classList.add('active');
   const m=MEMBERS.find(x=>x.id===id), allDays=getAllDays(), wd=getWorkdays(), evs=graphEvents[id]||[];
