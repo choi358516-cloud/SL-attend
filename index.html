@@ -739,11 +739,13 @@ function checkPin(){
   }
 }
 
+const PIN_SESSION_MS = 10 * 60 * 1000; // 10분
+
 function enterOffline(name, email, memberId){
-  // 세션 정보만 기기에 저장 (PIN 보안상 필요)
   localStorage.setItem('sl_user_name', name);
   localStorage.setItem('sl_user_email', email||'');
   localStorage.setItem('sl_user_mid', memberId||'');
+  localStorage.setItem('sl_pin_ts', Date.now().toString()); // 세션 타임스탬프
   currentAccount = { name, email };
   initRecords();
   enterApp(name, email, memberId);
@@ -1382,17 +1384,11 @@ function buildMember(){
   const pastWd=wd.filter(({date})=>date<=todayStr);
   let html=`<div class="page-title">개인 상세</div><div class="page-sub">팀원 탭 → 월간 달력</div><div class="member-select-grid">`;
   MEMBERS.forEach(m=>{
-    const stats={}; Object.keys(STATUSES).forEach(k=>stats[k]=0);
-    pastWd.forEach(({date})=>{
-      const s=records[m.id]?.[date]||'present';
-      if(stats[s]!==undefined) stats[s]++; else stats[s]=1;
-    });
-    const total=pastWd.length;
-    const rate=total>0?Math.round(((stats.present||0)+(stats.remote||0)+(stats.late||0))/total*100):0;
     html+=`<div class="ms-card" id="msc-${m.id}" onclick="showMemberDetail(${m.id})">
-      <div class="ms-big-av">${m.av}</div><div class="ms-name">${m.name}</div><div class="ms-role">${m.role}</div>
-      <div class="ms-rate" style="color:${rate>=90?'#69db7c':rate>=70?'#ffc947':'#ff6b6b'}">${rate}%</div>
-      <div class="ms-mini"><span style="color:#69db7c">출 ${stats.present||0}</span><span style="color:#74c0fc">재 ${stats.remote||0}</span><span style="color:#ff6b6b">결 ${stats.absent||0}</span></div></div>`;
+      <div class="ms-big-av">${m.av}</div>
+      <div class="ms-name">${m.name}</div>
+      <div class="ms-role">${m.role}</div>
+    </div>`;
   });
   html+='</div><div id="memberDetailArea"></div>'; return html;
 }
@@ -2155,11 +2151,25 @@ async function initApp(){
   // 팀원 목록 렌더링
   buildMemberPicker();
 
-  // 세션 복귀 (탭 새로고침 시)
+  // 자동 로그인 (10분 세션 체크)
   const name = localStorage.getItem('sl_user_name');
   const email = localStorage.getItem('sl_user_email')||'';
   const mid = parseInt(localStorage.getItem('sl_user_mid')||'0')||null;
-  if(name){ currentAccount={name,email}; initRecords(); enterApp(name, email, mid); return; }
+  const pinTs = parseInt(localStorage.getItem('sl_pin_ts')||'0');
+  const sessionValid = (Date.now() - pinTs) < PIN_SESSION_MS;
+
+  if(name && sessionValid){
+    // 10분 이내 → 자동 로그인
+    currentAccount={name,email}; initRecords(); enterApp(name, email, mid);
+    return;
+  } else if(name && !sessionValid){
+    // 10분 초과 → PIN 재입력 필요 (이름은 알고 있으니 바로 PIN 화면으로)
+    const member = MEMBERS.find(m=>m.id===mid);
+    if(member){
+      showToast('🔒 보안을 위해 PIN을 다시 입력해주세요');
+      selectMemberForPin(member.id);
+    }
+  }
 
   setTimeout(checkPWAInstall, 2000);
 }
