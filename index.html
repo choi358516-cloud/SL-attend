@@ -964,7 +964,10 @@ function enterApp(name, email, memberId){
   const installBtn = document.getElementById('drawerInstallBtn');
   if(installBtn){
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-    installBtn.style.display = (!isStandalone && deferredInstallPrompt) ? 'block' : 'none';
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    // iOS는 beforeinstallprompt 없으므로 standalone 아니면 항상 표시
+    // Android는 deferredInstallPrompt 있을 때만 표시
+    installBtn.style.display = (!isStandalone && (deferredInstallPrompt || isIOS)) ? 'block' : 'none';
   }
 }
 
@@ -2088,17 +2091,19 @@ async function installFromDrawer(){
 function checkPWAInstall(){
   if(window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone) return;
   if(localStorage.getItem('sl_pwa_dismissed')) return;
+  if(document.getElementById('pwaBanner')) return;
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isAndroid = /android/i.test(navigator.userAgent);
+  // iOS는 Safari에서만 설치 가능
+  const isSafari = /safari/i.test(navigator.userAgent) && !/chrome/i.test(navigator.userAgent);
+  if(isIOS && !isSafari) return; // iOS인데 Safari가 아니면 스킵
   if(!isIOS && !isAndroid) return;
-  if(document.getElementById('pwaBanner')) return;
 
   const banner = document.createElement('div');
   banner.id = 'pwaBanner';
   banner.style.cssText = 'position:fixed;bottom:calc(var(--bottomnav-h) + 12px);left:12px;right:12px;background:#222240;border:1px solid #5c7cfa;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:600;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
 
   if(deferredInstallPrompt){
-    // Android Chrome — 버튼 한 번으로 바로 설치
     banner.innerHTML=`
       <span style="font-size:26px">📲</span>
       <div style="flex:1">
@@ -2108,26 +2113,25 @@ function checkPWAInstall(){
       <button onclick="installPWA()" style="padding:8px 14px;background:#5c7cfa;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">설치</button>
       <button onclick="dismissPWA()" style="background:none;border:none;color:#6b74a0;font-size:20px;cursor:pointer;padding:4px;flex-shrink:0">✕</button>`;
   } else if(isIOS){
-    // iOS Safari — 수동 안내
     banner.innerHTML=`
       <span style="font-size:26px">📲</span>
       <div style="flex:1">
         <div style="font-size:13px;font-weight:700;color:#e8eaf6;margin-bottom:3px">앱으로 설치하기</div>
-        <div style="font-size:11px;color:#9fa8c4;line-height:1.6">하단 <b style="color:#e8eaf6">공유 버튼(↑)</b> → <b style="color:#e8eaf6">홈 화면에 추가</b></div>
+        <div style="font-size:11px;color:#9fa8c4;line-height:1.6">하단 <b style="color:#fff">공유(↑)</b> → <b style="color:#fff">홈 화면에 추가</b></div>
       </div>
       <button onclick="dismissPWA()" style="background:none;border:none;color:#6b74a0;font-size:20px;cursor:pointer;padding:4px;flex-shrink:0">✕</button>`;
   } else {
-    // Android 기타 브라우저
     banner.innerHTML=`
       <span style="font-size:26px">📲</span>
       <div style="flex:1">
         <div style="font-size:13px;font-weight:700;color:#e8eaf6;margin-bottom:3px">앱으로 설치하기</div>
-        <div style="font-size:11px;color:#9fa8c4;line-height:1.6">브라우저 메뉴(⋮) → <b style="color:#e8eaf6">앱 설치</b> 또는 <b style="color:#e8eaf6">홈 화면에 추가</b></div>
+        <div style="font-size:11px;color:#9fa8c4;line-height:1.6">브라우저 <b style="color:#fff">메뉴(⋮)</b> → <b style="color:#fff">홈 화면에 추가</b></div>
       </div>
       <button onclick="dismissPWA()" style="background:none;border:none;color:#6b74a0;font-size:20px;cursor:pointer;padding:4px;flex-shrink:0">✕</button>`;
   }
   document.body.appendChild(banner);
 }
+
 
 async function installPWA(){
   if(!deferredInstallPrompt) return;
