@@ -2142,6 +2142,8 @@ function showIOSInstallGuide(){
     </div>`;
   document.body.appendChild(guide);
 }
+
+async function installPWA(){
   if(!deferredInstallPrompt) return;
   deferredInstallPrompt.prompt();
   const result = await deferredInstallPrompt.userChoice;
